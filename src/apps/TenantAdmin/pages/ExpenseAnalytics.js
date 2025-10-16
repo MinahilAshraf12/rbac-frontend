@@ -31,9 +31,9 @@ import {
   AreaChart,
   Pie
 } from 'recharts';
-import axios from 'axios';
+import api from '../../../config/api';
 
-const API_URL = process.env.REACT_APP_API_URL;
+// const API_URL = process.env.REACT_APP_API_URL;
 // const API_URL = 'http://localhost:5000'; 
 
 const ExpenseAnalytics = () => {
@@ -66,70 +66,62 @@ const ExpenseAnalytics = () => {
     '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6B7280'
   ];
 
-  const getAuthHeaders = useCallback(() => {
-    const token = localStorage.getItem('token');
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-  }, []);
+ 
 
   const fetchAnalytics = useCallback(async (showRefreshing = false) => {
-    try {
-      if (showRefreshing) setRefreshing(true);
-      else setLoading(true);
+  try {
+    if (showRefreshing) setRefreshing(true);
+    else setLoading(true);
 
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-      });
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
 
-      const response = await axios.get(
-        `${API_URL}/api/expenses/analytics?${params.toString()}`,
-        { headers: getAuthHeaders() }
-      );
+    // ✅ Use api.js instead of axios
+    const response = await api.get(
+      `/api/expenses/analytics?${params.toString()}`
+    );
 
-      setAnalytics(response.data.data);
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-      // Set empty analytics if error
-      setAnalytics({
-        summary: { totalAmount: 0, totalCount: 0, avgAmount: 0, amountChange: 0, countChange: 0 },
-        previousPeriod: { totalAmount: 0, totalCount: 0 },
-        trendData: [],
-        expensesByCategory: [],
-        expensesByStatus: [],
-        topSpenders: []
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [filters, getAuthHeaders]);
+    setAnalytics(response.data.data);
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    // Set empty analytics if error
+    setAnalytics({
+      summary: { totalAmount: 0, totalCount: 0, avgAmount: 0, amountChange: 0, countChange: 0 },
+      previousPeriod: { totalAmount: 0, totalCount: 0 },
+      trendData: [],
+      expensesByCategory: [],
+      expensesByStatus: [],
+      topSpenders: []
+    });
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, [filters]); // ✅ Remove getAuthHeaders dependency
 
-  const fetchCategories = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/categories/simple`, {
-        headers: getAuthHeaders()
-      });
-      setCategories(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      setCategories([]);
-    }
-  }, [getAuthHeaders]);
+const fetchCategories = useCallback(async () => {
+  try {
+    // ✅ Use api.js instead of axios
+    const response = await api.get('/api/categories/simple');
+    setCategories(response.data.data || response.data || []);
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    setCategories([]);
+  }
+}, []); // ✅ Remove getAuthHeaders dependency
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/expenses/users`, {
-        headers: getAuthHeaders()
-      });
-      setUsers(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      setUsers([]);
-    }
-  }, [getAuthHeaders]);
+const fetchUsers = useCallback(async () => {
+  try {
+    // ✅ Use api.js instead of axios
+    const response = await api.get('/api/expenses/users');
+    setUsers(response.data.data || response.data || []);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    setUsers([]);
+  }
+}, []); // ✅ Remove getAuthHeaders dependency
 
   // Initial load
   useEffect(() => {
@@ -205,7 +197,7 @@ const ExpenseAnalytics = () => {
           <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">No expense data available</p>
           <p className="text-gray-500 dark:text-gray-500 text-sm mb-6">Start by adding some expenses to see analytics</p>
           <button
-            onClick={() => navigate('/add-expense')}
+            onClick={() => navigate('/tenant/add-expense')}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
             Add Your First Expense
@@ -266,7 +258,7 @@ const ExpenseAnalytics = () => {
                 <span className="hidden sm:inline">Refresh</span>
               </button>
               <button 
-                onClick={() => navigate('/expenses')}
+                onClick={() => navigate('/tenant/expenses')}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
               >
                 <span className="hidden sm:inline">View All</span>
@@ -726,14 +718,14 @@ const ExpenseAnalytics = () => {
             </div>
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => navigate('/add-expense')}
+                onClick={() => navigate('/tenant/add-expense')}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
               >
                 <Download className="w-4 h-4" />
                 Add Expense
               </button>
               <button 
-                onClick={() => navigate('/expenses')}
+                onClick={() => navigate('/tenant/expenses')}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
               >
                 View All Expenses

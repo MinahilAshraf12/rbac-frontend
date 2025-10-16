@@ -1,169 +1,94 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import axios from 'axios';
+// src/contexts/AuthContext.js
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import toast from 'react-hot-toast';
-
-// Multi-tenant API URL configuration
-// const getTenantApiUrl = () => {
-//   const hostname = window.location.hostname;
-  
-//   // For localhost development, point to demo tenant
-//   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-//     return 'https://demo.i-expense.ikftech.com/api';
-//   }
-  
-//   // For production, use current domain
-//   return `https://${hostname}/api`;
-// };
-
-// const API_URL = getTenantApiUrl();
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-// const API_URL = process.env.REACT_APP_API_URL;
 
 const AuthContext = createContext();
 
-const initialState = {
-  user: null,
-  token: localStorage.getItem('token'),
-  loading: true,
-  isAuthenticated: false,
-};
-
-const authReducer = (state, action) => {
-  switch (action.type) {
-    case 'LOGIN_SUCCESS':
-      localStorage.setItem('token', action.payload.token);
-      return {
-        ...state,
-        user: action.payload.user,
-        token: action.payload.token,
-        isAuthenticated: true,
-        loading: false,
-      };
-    case 'LOGOUT':
-      localStorage.removeItem('token');
-      return {
-        ...state,
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        loading: false,
-      };
-    case 'LOAD_USER':
-      return {
-        ...state,
-        user: action.payload,
-        isAuthenticated: true,
-        loading: false,
-      };
-    case 'AUTH_ERROR':
-      localStorage.removeItem('token');
-      return {
-        ...state,
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        loading: false,
-      };
-    case 'SET_LOADING':
-      return {
-        ...state,
-        loading: action.payload,
-      };
-    default:
-      return state;
-  }
-};
-
 export const AuthProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(authReducer, initialState);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Set auth token in axios headers
   useEffect(() => {
-    if (state.token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-  }, [state.token]);
+    checkAuth();
+  }, []);
 
-  // Load user on app start
-  useEffect(() => {
-    if (state.token && !state.user) {
-      loadUser();
-    } else {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [state.token, state.user]);
-
-  const loadUser = async () => {
+  const checkAuth = () => {
     try {
-      const response = await axios.get(`${API_URL}/auth/me`);
-      dispatch({ type: 'LOAD_USER', payload: response.data.data });
-    } catch (error) {
-      dispatch({ type: 'AUTH_ERROR' });
-    }
-  };
+      const tenantToken = localStorage.getItem('tenantToken');
+      const storedUser = localStorage.getItem('user');
+      const storedTenant = localStorage.getItem('tenant');
 
-  const login = async (email, password) => {
-    try {
-      const response = await axios.post(`${API_URL}/auth/login`, { 
-        email, 
-        password 
-      });
+      if (tenantToken && storedUser && storedTenant) {
+        const userData = JSON.parse(storedUser);
+        // const tenantData = JSON.parse(storedTenant);
 
-      dispatch({
-        type: 'LOGIN_SUCCESS',
-        payload: {
-          user: response.data.data,
-          token: response.data.token,
-        },
-      });
-      toast.success('Login successful!');
-      return { success: true };
-    } catch (error) {
-      console.error('Login error:', error);
-      const message = error.response?.data?.message || 'Login failed';
-      toast.error(message);
-      return { success: false, message };
-    }
-  };
+        console.log('✅ User authenticated:', userData.email); // ✅ Simplified log
 
-  const logout = async () => {
-    try {
-      await axios.get(`${API_URL}/auth/logout`);
+        setUser(userData);
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+      }
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('❌ Auth check error:', error);
+      setIsAuthenticated(false);
     } finally {
-      dispatch({ type: 'LOGOUT' });
-      toast.success('Logged out successfully');
+      setLoading(false);
     }
   };
 
   const hasPermission = (resource, action) => {
-    if (!state.user || !state.user.role) return false;
+    if (!user || !user.permissions) {
+      return false;
+    }
+
+    return user.permissions.some(permission => {
+      if (permission.resource !== resource) {
+        return false;
+      }
+
+      return (
+        permission.actions.includes(action) || 
+        permission.actions.includes('manage')
+      );
+    });
+  };
+
+  const logout = () => {
+    console.log('🚪 Logging out...');
     
-    const userPermissions = state.user.role.permissions;
-    return userPermissions.some(permission => 
-      permission.resource === resource && 
-      (permission.actions.includes(action) || permission.actions.includes('manage'))
-    );
+    localStorage.removeItem('tenantToken');
+    localStorage.removeItem('tenant');
+    localStorage.removeItem('user');
+    
+    setUser(null);
+    setIsAuthenticated(false);
+    
+    toast.success('Logged out successfully');
+    window.location.href = '/login';
   };
 
   const value = {
-    ...state,
-    login,
-    logout,
-    loadUser,
+    user,
+    loading,
+    isAuthenticated,
     hasPermission,
+    logout,
+    checkAuth
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 };

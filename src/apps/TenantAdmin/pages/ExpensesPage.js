@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Plus, 
   Edit, 
+
+
   Eye, 
   Trash2, 
   Search,
@@ -21,7 +23,12 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import { useSubscription } from '../../../contexts/SubscriptionContext';
+import UsageLimitWarning from '../../../shared/components/UsageLimitWarning';
+import UpgradeModal from '../../../shared/components/UpgradeModal';
 import { useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import api from '../../../config/api'; 
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -497,7 +504,9 @@ const ExpenseCard = ({ expense, onView, onEdit, onDelete, onFileView, formatCurr
 const ExpensesPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
+   const { checkLimit } = useSubscription();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const expenseLimit = checkLimit('expense');
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -508,12 +517,13 @@ const ExpensesPage = () => {
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(window.innerWidth < 768 ? 'cards' : 'table'); // Default to cards on mobile
   const [filtersVisible, setFiltersVisible] = useState(false);
-  const [statistics, setStatistics] = useState({
-    totalExpenses: 0,
-    totalAmount: 0,
-    monthlyExpenses: 0,
-    pendingExpenses: 0
-  });
+ const [statistics, setStatistics] = useState({
+  totalExpenses: 0,
+  totalAmount: 0,
+  monthlyExpenses: 0,
+  pendingExpenses: 0
+});
+
 
   // File viewer state
   const [fileViewer, setFileViewer] = useState({
@@ -523,116 +533,209 @@ const ExpensesPage = () => {
     paymentIndex: null
   });
 
-  // Get auth headers with auth
-  const getAuthHeaders = useCallback(() => {
-    const token = localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
-  }, []);
 
-  // API call to load expenses
-  const loadExpenses = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      let response = await fetch(`${API_URL}/api/expenses?limit=100`, {
-        headers: getAuthHeaders()
-      });
 
-      if (!response.ok) {
-        response = await fetch(`${API_URL}/api/expenses`, {
-          headers: getAuthHeaders()
-        });
-      }
+const loadExpenses = useCallback(async () => {
+  try {
+    setLoading(true);
+    
+    const result = await api.get('/api/expenses?limit=100').catch(() =>
+      api.get('/api/expenses')
+    );
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch expenses');
-      }
-
-      const result = await response.json();
-      console.log('API Response:', result);
-      console.log('Expenses count:', result.data?.length);
-      
-      setExpenses(result.data || []);
-    } catch (error) {
-      console.error('Error loading expenses:', error);
+    // console.log('📊 Full API Response:', result);
+    
+    const expensesData = result.data?.data || result.data || [];
+    
+    if (!Array.isArray(expensesData)) {
+      console.error('❌ expensesData is not an array:', expensesData);
       setExpenses([]);
-    } finally {
-      setLoading(false);
+      return;
     }
-  }, [getAuthHeaders]);
+    
+    setExpenses(expensesData);
+    console.log('✅ Expenses set in state:', expensesData.length);
+    
+  } catch (error) {
+    console.error('❌ Error loading expenses:', error);
+    setExpenses([]);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
-  const loadCategories = useCallback(async () => {
-    try {
-      let response = await fetch(`${API_URL}/api/categories/simple`, {
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        response = await fetch(`${API_URL}/api/categories?limit=100`, {
-          headers: getAuthHeaders()
-        });
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch categories');
-      }
-
-      const result = await response.json();
-      setCategories(result.data || []);
-    } catch (error) {
-      console.error('Error loading categories:', error);
-      setCategories([
-        { _id: '1', name: 'Food' },
-        { _id: '2', name: 'General' },
-        { _id: '3', name: 'Transport' },
-        { _id: '4', name: 'Entertainment' }
-      ]);
-    }
-  }, [getAuthHeaders]);
-
-  // API call to load statistics
-  const loadStatistics = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/expenses/statistics`, {
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch statistics');
-      }
-
-      const result = await response.json();
-      setStatistics({
-        totalExpenses: result.data.totalExpenses,
-        totalAmount: result.data.totalAmount,
-        monthlyExpenses: result.data.monthlyExpenses,
-        pendingExpenses: result.data.expensesByStatus.find(s => s._id === 'pending')?.count || 0
-      });
-    } catch (error) {
-      console.error('Error loading statistics:', error);
-    }
-  }, [getAuthHeaders]);
-
-  // Calculate local statistics from expenses
-  const calculateLocalStatistics = useCallback(() => {
-    const total = expenses.reduce((sum, expense) => sum + expense.totalAmount, 0);
-    const pending = expenses.filter(exp => exp.status === 'pending').length;
-    const thisMonth = expenses.filter(exp => {
-      const expDate = new Date(exp.createdAt);
-      const now = new Date();
-      return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
-    }).length;
-
-    setStatistics({
-      totalExpenses: expenses.length,
-      totalAmount: total,
-      monthlyExpenses: thisMonth,
-      pendingExpenses: pending
+// ============================================
+// LOAD CATEGORIES FUNCTION
+// ============================================
+const loadCategories = useCallback(async () => {
+  try {
+    console.log('🔵 Starting to load categories...');
+    
+    // Try the simple endpoint first, fallback to full endpoint
+    const result = await api.get('/api/categories/simple').catch(() => {
+      console.log('⚠️ Simple endpoint failed, trying full endpoint...');
+      return api.get('/api/categories?limit=100');
     });
-  }, [expenses]);
+
+    console.log('📦 Categories API Raw Response:', result);
+    console.log('📦 Categories result.data:', result.data);
+    console.log('📦 Is result.data an array?', Array.isArray(result.data));
+
+    // Handle different response formats
+    let categoriesData = [];
+    
+    if (Array.isArray(result.data)) {
+      // Format 1: Direct array response
+      categoriesData = result.data;
+      console.log('✅ Format 1: Direct array detected');
+    } else if (result.data && Array.isArray(result.data.categories)) {
+      // Format 2: Nested in categories property
+      categoriesData = result.data.categories;
+      console.log('✅ Format 2: Nested categories array detected');
+    } else if (result.data && Array.isArray(result.data.data)) {
+      // Format 3: Nested in data property
+      categoriesData = result.data.data;
+      console.log('✅ Format 3: Nested data array detected');
+    } else {
+      console.log('⚠️ Unknown format, using empty array');
+      categoriesData = [];
+    }
+
+    console.log('📊 Final categories count:', categoriesData.length);
+    console.log('📊 Categories data:', categoriesData);
+
+    // Always ensure we have an array with at least default values
+    if (categoriesData.length === 0) {
+      console.log('⚠️ No categories returned, using default fallback');
+      categoriesData = [
+        { _id: 'default-1', name: 'Food' },
+        { _id: 'default-2', name: 'Transportation' },
+        { _id: 'default-3', name: 'Utilities' },
+        { _id: 'default-4', name: 'General' }
+      ];
+    }
+
+    setCategories(categoriesData);
+    console.log('✅ Categories loaded successfully:', categoriesData.length, 'items');
+    
+  } catch (error) {
+    console.error('❌ Error loading categories:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    
+    // Set fallback categories on error
+    const fallbackCategories = [
+      { _id: 'fallback-1', name: 'Food' },
+      { _id: 'fallback-2', name: 'Transportation' },
+      { _id: 'fallback-3', name: 'Utilities' },
+      { _id: 'fallback-4', name: 'General' }
+    ];
+    
+    setCategories(fallbackCategories);
+    console.log('✅ Fallback categories set:', fallbackCategories.length, 'items');
+  }
+}, []); // No dependencies needed
+
+ // Calculate local statistics from expenses
+const calculateLocalStatistics = useCallback(() => {
+  if (expenses.length === 0) {
+    return {
+      totalExpenses: 0,
+      totalAmount: 0,
+      monthlyExpenses: 0,
+      pendingExpenses: 0
+    };
+  }
+
+  const total = expenses.reduce((sum, expense) => sum + (expense.totalAmount || 0), 0);
+  const pending = expenses.filter(exp => exp.status === 'pending').length;
+  
+  const now = new Date();
+  const thisMonth = expenses.filter(exp => {
+    const expDate = new Date(exp.date || exp.createdAt);
+    return expDate.getMonth() === now.getMonth() && 
+           expDate.getFullYear() === now.getFullYear();
+  }).length;
+
+  return {
+    totalExpenses: expenses.length,
+    totalAmount: total,
+    monthlyExpenses: thisMonth,
+    pendingExpenses: pending
+  };
+}, [expenses]);
+// ============================================
+// LOAD STATISTICS FUNCTION
+// ============================================
+const loadStatistics = useCallback(async () => {
+  // Always calculate from local expenses first
+  if (expenses.length > 0) {
+    const localStats = calculateLocalStatistics();
+    setStatistics(localStats);
+  }
+
+  // Skip API call for now since it's returning incorrect data
+  // The local calculation is accurate and doesn't cause blinking
+  
+  /* Commented out API call - uncomment when backend is fixed
+  try {
+    setStatsLoading(true);
+    console.log('📊 Loading statistics from API...');
+    
+    const result = await api.get('/api/expenses/statistics');
+    // ... rest of API logic
+  } catch (error) {
+    console.error('❌ Error loading statistics:', error);
+  } finally {
+    setStatsLoading(false);
+  }
+  */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [expenses.length, calculateLocalStatistics]);
+
+
+// ============================================
+// USAGE EXAMPLE IN COMPONENT
+// ============================================
+// Place these inside your ExpensesPage component:
+
+// 1. Load initial data
+useEffect(() => {
+  console.log('🚀 Component mounted, loading data...');
+  loadExpenses();
+  loadCategories();
+  // Don't load statistics yet - wait for expenses to load first
+}, [loadExpenses, loadCategories]);
+
+// 2. Load statistics AFTER expenses are loaded
+// 2. Load statistics AFTER expenses are loaded
+useEffect(() => {
+  if (expenses.length > 0) {
+    console.log('📊 Expenses loaded, calculating statistics...');
+    const localStats = calculateLocalStatistics();
+    setStatistics(localStats);
+    
+    // Then load from API (but local stats are already showing)
+    loadStatistics();
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [expenses.length]); // Only trigger when expenses count changes
+
+// Debug helper - remove after fixing
+useEffect(() => {
+  console.log('🔍 Current categories state:', categories);
+  console.log('🔍 Is categories an array?', Array.isArray(categories));
+  console.log('🔍 Categories length:', categories?.length);
+}, [categories]);
+
+useEffect(() => {
+  console.log('🔍 Current statistics state:', statistics);
+}, [statistics]);
+
+ 
 
   // Handle window resize for responsive view mode
   useEffect(() => {
@@ -647,11 +750,11 @@ const ExpensesPage = () => {
   }, [viewMode]);
 
   // Load all data on component mount
-  useEffect(() => {
-    loadExpenses();
-    loadCategories();
-    loadStatistics();
-  }, [loadExpenses, loadCategories, loadStatistics]);
+  // useEffect(() => {
+  //   loadExpenses();
+  //   loadCategories();
+  //   loadStatistics();
+  // }, [loadExpenses, loadCategories, loadStatistics]);
 
 useEffect(() => {
   if (location.state?.refreshExpenses) {
@@ -662,22 +765,29 @@ useEffect(() => {
 
 
   // Recalculate statistics when expenses change
-  useEffect(() => {
-    if (expenses.length > 0) {
-      calculateLocalStatistics();
-    }
-  }, [expenses, calculateLocalStatistics]);
+  // useEffect(() => {
+  //   if (expenses.length > 0) {
+  //     calculateLocalStatistics();
+  //   }
+  // }, [expenses, calculateLocalStatistics]);
 
-  const handleAddExpense = () => {
-    navigate('/add-expense');
-  };
+ const handleAddExpense = () => {
+  // Check limit
+  if (!expenseLimit.canUse) {
+    toast.error('Monthly expense limit reached. Please upgrade your plan.');
+    setShowUpgradeModal(true);
+    return;
+  }
+  
+  navigate('/tenant/add-expense');
+};
 
   const handleEditExpense = (expense) => {
-    navigate('/add-expense', { state: { expense, mode: 'edit' } });
+    navigate('/tenant/add-expense', { state: { expense, mode: 'edit' } });
   };
 
   const handleViewExpense = (expense) => {
-    navigate('/add-expense', { state: { expense, mode: 'view' } });
+    navigate('/tenant/add-expense', { state: { expense, mode: 'view' } });
   };
 
   const handleDeleteExpense = async (expenseId) => {
@@ -687,17 +797,17 @@ useEffect(() => {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/expenses/${expenseId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+    await api.delete(`/api/expenses/${expenseId}`);
+setExpenses(expenses.filter(exp => exp._id !== expenseId));
+alert('Expense deleted successfully');
+return; // Exit early on success
 
-      if (!response.ok) {
-        throw new Error('Failed to delete expense');
-      }
+      // if (!response.ok) {
+      //   throw new Error('Failed to delete expense');
+      // }
 
-      setExpenses(expenses.filter(exp => exp._id !== expenseId));
-      alert('Expense deleted successfully');
+      // setExpenses(expenses.filter(exp => exp._id !== expenseId));
+      // alert('Expense deleted successfully');
     } catch (error) {
       console.error('Error deleting expense:', error);
       alert('Failed to delete expense. Please try again.');
@@ -863,7 +973,17 @@ useEffect(() => {
             </div>
           </div>
         </div>
-
+{expenseLimit.percentage > 75 && (
+  <div className="mb-4">
+    <UsageLimitWarning
+      feature="expense"
+      current={expenseLimit.current}
+      limit={expenseLimit.limit}
+      percentage={expenseLimit.percentage}
+      onUpgrade={() => setShowUpgradeModal(true)}
+    />
+  </div>
+)}
         {/* Mobile-Optimized Search and Filters */}
         <div className="bg-gradient-to-br from-white/95 to-blue-50/90 dark:from-gray-800/95 dark:to-gray-700/90 backdrop-blur-sm rounded-2xl shadow-xl border border-blue-200 dark:border-gray-600 mb-4 sm:mb-8">
           <div className="p-4 sm:p-6">
@@ -1295,6 +1415,12 @@ useEffect(() => {
         expenseId={fileViewer.expenseId}
         paymentIndex={fileViewer.paymentIndex}
       />
+      <UpgradeModal
+  isOpen={showUpgradeModal}
+  onClose={() => setShowUpgradeModal(false)}
+  currentPlan="free"
+  limitType="expense"
+/>
     </div>
   );
 };

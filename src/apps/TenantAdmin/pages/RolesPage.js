@@ -15,9 +15,9 @@ import {
   AlertTriangle,
   RefreshCw
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../../../config/api';
 import toast from 'react-hot-toast';
-import { useAuth } from '../../../../contexts/AuthContext';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const RolesPage = () => {
   const { hasPermission } = useAuth();
@@ -35,7 +35,7 @@ const RolesPage = () => {
   const [editingRole, setEditingRole] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   // const API_URL = 'http://localhost:5000'; 
-  const API_URL = process.env.REACT_APP_API_URL;
+  // const API_URL = process.env.REACT_APP_API_URL;
 
   // Available resources and actions from your backend
   const availableResources = ['users', 'roles', 'categories', 'permissions', 'dashboard', 'settings'];
@@ -43,10 +43,11 @@ const RolesPage = () => {
 
 
 
- const fetchRoles = useCallback(async () => {
+const fetchRoles = useCallback(async () => {
   try {
     setLoading(true);
-    const response = await axios.get(`${API_URL}/api/roles`);
+    // ✅ Use api.js instead of axios
+    const response = await api.get('/api/roles');
     setRoles(response.data.data);
   } catch (error) {
     toast.error('Error fetching roles');
@@ -54,68 +55,72 @@ const RolesPage = () => {
   } finally {
     setLoading(false);
   }
-}, [API_URL]);
+}, []); // ✅ Remove API_URL dependency
+
  useEffect(() => {
   fetchRoles();
 }, [fetchRoles]);
-  const createRole = async (roleData) => {
-    try {
-      setActionLoading(true);
-      const response = await axios.post(`${API_URL}/api/roles`, roleData);
-      setRoles([...roles, response.data.data]);
-      setShowCreateModal(false);
-      toast.success('Role created successfully');
-      fetchRoles(); // Refresh to get updated data
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error creating role');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+const createRole = async (roleData) => {
+  try {
+    setActionLoading(true);
+    // ✅ Use api.js instead of axios
+    const response = await api.post('/api/roles', roleData);
+    setRoles([...roles, response.data.data]);
+    setShowCreateModal(false);
+    toast.success('Role created successfully');
+    fetchRoles(); // Refresh to get updated data
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Error creating role');
+  } finally {
+    setActionLoading(false);
+  }
+};
 
-  const updateRole = async (roleId, roleData) => {
-    try {
-      setActionLoading(true);
-     const response = await axios.put(`${API_URL}/api/roles/${roleId}`, roleData);
-      setRoles(roles.map(role => role._id === roleId ? response.data.data : role));
-      setShowEditModal(false);
-      setEditingRole(null);
-      toast.success('Role updated successfully');
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error updating role');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+ const updateRole = async (roleId, roleData) => {
+  try {
+    setActionLoading(true);
+    // ✅ Use api.js instead of axios
+    const response = await api.put(`/api/roles/${roleId}`, roleData);
+    setRoles(roles.map(role => role._id === roleId ? response.data.data : role));
+    setShowEditModal(false);
+    setEditingRole(null);
+    toast.success('Role updated successfully');
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Error updating role');
+  } finally {
+    setActionLoading(false);
+  }
+};
 
   const deleteRole = async (roleId) => {
-    try {
-      setActionLoading(true);
-      await axios.delete(`${API_URL}/api/roles/${roleId}`);
-      setRoles(roles.filter(role => role._id !== roleId));
-      setShowDeleteModal(false);
-      setSelectedRole(null);
-      toast.success('Role deleted successfully');
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error deleting role');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const updateRolePermissions = async (roleId, permissions) => {
-    try {
-      setActionLoading(true);
-      const response = await axios.put(`${API_URL}/api/roles/${roleId}/permissions`, { permissions });
-      setRoles(roles.map(role => role._id === roleId ? response.data.data : role));
-      toast.success('Permissions updated successfully');
-      fetchRoles(); // Refresh roles
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error updating permissions');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  try {
+    setActionLoading(true);
+    // ✅ Use api.js instead of axios
+    await api.delete(`/api/roles/${roleId}`);
+    setRoles(roles.filter(role => role._id !== roleId));
+    setShowDeleteModal(false);
+    setSelectedRole(null);
+    toast.success('Role deleted successfully');
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Error deleting role');
+  } finally {
+    setActionLoading(false);
+  }
+};
+ const updateRolePermissions = async (roleId, permissions) => {
+  try {
+    setActionLoading(true);
+    // ✅ Use api.js instead of axios
+    const response = await api.put(`/api/roles/${roleId}/permissions`, { permissions });
+    setRoles(roles.map(role => role._id === roleId ? response.data.data : role));
+    toast.success('Permissions updated successfully');
+    fetchRoles(); // Refresh roles
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Error updating permissions');
+  } finally {
+    setActionLoading(false);
+  }
+};
 
   const filteredAndSortedRoles = roles
     .filter(role => {

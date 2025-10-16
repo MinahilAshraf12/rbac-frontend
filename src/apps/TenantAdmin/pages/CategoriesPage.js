@@ -17,8 +17,8 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuth } from '../../../../contexts/AuthContext';
-import api, { ENDPOINTS } from '../../../../config/api';
+import { useAuth } from '../../../contexts/AuthContext';
+import api, { ENDPOINTS } from '../../../config/api';
 
 const CategoriesPage = () => {
 const { hasPermission } = useAuth();

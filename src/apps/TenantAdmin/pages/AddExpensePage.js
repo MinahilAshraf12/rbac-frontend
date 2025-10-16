@@ -3,7 +3,6 @@ import {
   ArrowLeft, 
   Save, 
   Plus, 
-  // Minus, 
   DollarSign,
   FileText,
   Users,
@@ -18,51 +17,35 @@ import {
   Trash2,
   X
 } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import api from '../../../config/api'; 
 
 const API_URL = process.env.REACT_APP_API_URL;
-// const API_URL = 'http://localhost:5000'; 
 
 const AddExpensePage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const { slug } = useParams(); // ✅ GET SLUG FROM PARAMS
   
   const [categories, setCategories] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState('add'); // add, edit, view
+  const [mode, ] = useState('add');
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    date: new Date().toISOString().split('T')[0], // Default to today
+    date: new Date().toISOString().split('T')[0],
     payments: [{ user: '', category: '', subCategory: '', amount: '', file: null }]
   });
 
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [activeUserInput, setActiveUserInput] = useState(null);
 
-  // Get auth token from localStorage
-  const getAuthToken = () => {
-    return localStorage.getItem('token');
-  };
-
-  // API headers with auth - wrapped in useCallback for consistency
-  const getAuthHeaders = useCallback(() => {
-    const token = getAuthToken();
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
-    };
-  }, []); // No dependencies as getAuthToken is defined above and doesn't change
-
-  // Helper function to get file preview URL
   const getFilePreviewUrl = (file) => {
     if (!file || !file.filename) return null;
     return `${API_URL}/api/expenses/file/${file.filename}`;
   };
 
-  // Helper function to check if file is an image
   const isImageFile = (filename) => {
     if (!filename) return false;
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
@@ -70,224 +53,195 @@ const AddExpensePage = () => {
     return imageExtensions.includes(extension);
   };
 
-  // Load categories - wrapped in useCallback to fix dependency warning
   const loadCategories = useCallback(async () => {
     try {
-      let response = await fetch(`${API_URL}/api/categories/simple`, {
-        headers: getAuthHeaders()
+      console.log('📂 Loading categories for AddExpensePage...');
+      
+      const response = await api.get('/api/categories/simple');
+      console.log('✅ Categories API response:', response.data);
+      
+      const categoriesData = response.data.data || response.data || [];
+      console.log('📊 Categories data extracted:', categoriesData);
+      
+      if (Array.isArray(categoriesData) && categoriesData.length > 0) {
+        setCategories(categoriesData);
+        console.log('✅ Categories set successfully:', categoriesData.length, 'categories');
+      } else {
+        console.warn('⚠️ No categories found, using fallback');
+        setCategories([
+          { _id: '1', name: 'Food' },
+          { _id: '2', name: 'General' },
+          { _id: '3', name: 'Transport' }
+        ]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading categories:', error);
+      setCategories([
+        { _id: '1', name: 'Food' },
+        { _id: '2', name: 'General' },
+        { _id: '3', name: 'Transport' }
+      ]);
+    }
+  }, []);
+
+  useEffect(() => {
+    console.log('📂 Categories loaded:', categories);
+    console.log('📂 Categories count:', categories.length);
+    if (categories.length > 0) {
+      console.log('📂 First category:', categories[0]);
+    }
+  }, [categories]);
+
+  const loadExpenseUsers = useCallback(async () => {
+    try {
+      const result = await api.get('/api/expenses/users');
+      
+      const usersData = result?.data || result || [];
+      const validUsers = Array.isArray(usersData) ? usersData : [];
+      
+      setUsers(validUsers.length > 0 ? validUsers : [
+        'John Doe', 'Jane Smith', 'Mike Johnson'
+      ]);
+    } catch (error) {
+      console.error('Error loading users:', error);
+      setUsers(['John Doe', 'Jane Smith', 'Mike Johnson']);
+    }
+  }, []);
+
+  useEffect(() => {
+    console.log('🔗 AddExpensePage tenant slug:', slug);
+    loadCategories();
+    loadExpenseUsers();
+  }, [slug, loadCategories, loadExpenseUsers]);
+
+  const handleBack = () => {
+    // ✅ USE SLUG IN NAVIGATION
+    navigate(`/tenant/${slug}/expenses`);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.title || formData.payments.length === 0) {
+      alert('Please fill all required fields');
+      return;
+    }
+
+    for (const payment of formData.payments) {
+      if (!payment.user || !payment.category || !payment.amount || parseFloat(payment.amount) <= 0) {
+        alert('Please provide valid user names, categories, and amounts for all payments');
+        return;
+      }
+    }
+
+    const validPayments = formData.payments.filter(payment => 
+      payment.user && payment.category && payment.amount && parseFloat(payment.amount) > 0
+    );
+
+    if (validPayments.length === 0) {
+      alert('Please add at least one valid payment with user, category, and amount');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const formDataToSend = new FormData();
+      
+      formDataToSend.append('title', formData.title.trim());
+      formDataToSend.append('description', formData.description?.trim() || '');
+      formDataToSend.append('date', formData.date);
+      formDataToSend.append('category', validPayments[0].category);
+
+      const paymentsData = validPayments.map((payment, index) => {
+        const paymentData = {
+          user: payment.user.trim(),
+          amount: parseFloat(payment.amount),
+          category: payment.category,
+          subCategory: payment.subCategory || ''
+        };
+
+        if (mode === 'edit') {
+          const hasNewFile = !!payment.file;
+          const hasExistingFile = payment.existingFile?.hasFile;
+          
+          if (hasNewFile) {
+            paymentData.fileAction = 'replace';
+            paymentData.hasNewFile = true;
+            paymentData.hasExistingFile = false;
+          } else if (payment.fileAction === 'remove') {
+            paymentData.fileAction = 'remove';
+            paymentData.hasNewFile = false;
+            paymentData.hasExistingFile = false;
+          } else if (hasExistingFile) {
+            paymentData.fileAction = 'keep';
+            paymentData.hasNewFile = false;
+            paymentData.hasExistingFile = true;
+          }
+        } else {
+          paymentData.hasNewFile = !!payment.file;
+        }
+
+        return paymentData;
+      });
+      
+      formDataToSend.append('payments', JSON.stringify(paymentsData));
+
+      validPayments.forEach((payment, index) => {
+        if (payment.file) {
+          formDataToSend.append(`payment_${index}`, payment.file, payment.file.name);
+        }
       });
 
-      if (!response.ok) {
-        response = await fetch(`${API_URL}/api/categories?limit=100`, {
-          headers: getAuthHeaders()
+      console.log('Sending payments:', JSON.stringify(paymentsData, null, 2));
+
+      const token = localStorage.getItem('tenantToken');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      let response;
+      if (mode === 'add') {
+        response = await fetch(`${API_URL}/api/expenses`, {
+          method: 'POST',
+          headers: headers,
+          body: formDataToSend
+        });
+      } else if (mode === 'edit') {
+        response = await fetch(`${API_URL}/api/expenses/${formData._id}`, {
+          method: 'PUT',
+          headers: headers,
+          body: formDataToSend
         });
       }
 
       if (!response.ok) {
-        throw new Error('Failed to fetch categories');
+        const errorText = await response.text();
+        let errorMessage;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorData.error || 'Failed to save expense';
+        } catch {
+          errorMessage = errorText || 'Failed to save expense';
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
-      setCategories(result.data || []);
+      console.log('Success response:', result);
+      
+      alert(`Expense ${mode === 'add' ? 'added' : 'updated'} successfully!`);
+      // ✅ USE SLUG IN NAVIGATION
+      navigate(`/tenant/${slug}/expenses`, { state: { refreshExpenses: true } });
     } catch (error) {
-      console.error('Error loading categories:', error);
-      // Fallback to sample data
-      setCategories([
-        { _id: '1', name: 'Food' },
-        { _id: '2', name: 'General' },
-        { _id: '3', name: 'Transport' },
-        { _id: '4', name: 'Entertainment' },
-        { _id: '5', name: 'Shopping' },
-        { _id: '6', name: 'Health' },
-        { _id: '7', name: 'Education' },
-        { _id: '8', name: 'Bills & Utilities' }
-      ]);
+      console.error('Error saving expense:', error);
+      alert(`Failed to ${mode} expense: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-  }, [getAuthHeaders]); // Include getAuthHeaders as dependency
-
-  // Load users - wrapped in useCallback to fix dependency warning
-  const loadExpenseUsers = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/expenses/users`, {
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-
-      const result = await response.json();
-      setUsers(result.data || []);
-    } catch (error) {
-      console.error('Error loading users:', error);
-      // Fallback to sample data
-      setUsers(['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Wilson', 'David Brown', 'Emily Davis', 'Tom Anderson']);
-    }
-  }, [getAuthHeaders]); // Include getAuthHeaders as dependency
-
-  // Initialize form based on location state
-  useEffect(() => {
-    if (location.state?.expense) {
-      const expense = location.state.expense;
-      setMode(location.state.mode || 'edit');
-      setFormData({
-        title: expense.title,
-        description: expense.description,
-        date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        payments: expense.payments.map(p => ({ 
-          user: p.user,
-          category: p.category?._id || '',
-          subCategory: p.subCategory || '',
-          amount: p.amount,
-          file: null,
-          existingFile: p.file ? {
-            filename: p.file.filename,
-            originalName: p.file.originalName,
-            hasFile: true
-          } : null
-        }))
-      });
-    }
-
-    loadCategories();
-    loadExpenseUsers();
-  }, [location.state, loadCategories, loadExpenseUsers]); // Added missing dependencies
-
-  const handleBack = () => {
-    navigate('/expenses');
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!formData.title || formData.payments.length === 0) {
-    alert('Please fill all required fields');
-    return;
-  }
-
-  // Validate payments
-  for (const payment of formData.payments) {
-    if (!payment.user || !payment.category || !payment.amount || parseFloat(payment.amount) <= 0) {
-      alert('Please provide valid user names, categories, and amounts for all payments');
-      return;
-    }
-  }
-
-  const validPayments = formData.payments.filter(payment => 
-    payment.user && payment.category && payment.amount && parseFloat(payment.amount) > 0
-  );
-
-  if (validPayments.length === 0) {
-    alert('Please add at least one valid payment with user, category, and amount');
-    return;
-  }
-
-  try {
-    setLoading(true);
-    
-    // Create FormData for file uploads
-    const formDataToSend = new FormData();
-    
-    // Add basic expense data
-    formDataToSend.append('title', formData.title.trim());
-    formDataToSend.append('description', formData.description?.trim() || '');
-    formDataToSend.append('date', formData.date);
-    formDataToSend.append('category', validPayments[0].category);
-
-    // CRITICAL FIX: Send payments as JSON STRING (backend will parse it)
-    const paymentsData = validPayments.map((payment, index) => {
-      const paymentData = {
-        user: payment.user.trim(),
-        amount: parseFloat(payment.amount),
-        category: payment.category,
-        subCategory: payment.subCategory || ''
-      };
-
-      // File action logic for updates
-      if (mode === 'edit') {
-        const hasNewFile = !!payment.file;
-        const hasExistingFile = payment.existingFile?.hasFile;
-        
-        if (hasNewFile) {
-          paymentData.fileAction = 'replace';
-          paymentData.hasNewFile = true;
-          paymentData.hasExistingFile = false;
-        } else if (payment.fileAction === 'remove') {
-          paymentData.fileAction = 'remove';
-          paymentData.hasNewFile = false;
-          paymentData.hasExistingFile = false;
-        } else if (hasExistingFile) {
-          paymentData.fileAction = 'keep';
-          paymentData.hasNewFile = false;
-          paymentData.hasExistingFile = true;
-        }
-      } else {
-        // Add mode
-        paymentData.hasNewFile = !!payment.file;
-      }
-
-      return paymentData;
-    });
-    
-    // APPEND AS JSON STRING - Backend will parse this
-    formDataToSend.append('payments', JSON.stringify(paymentsData));
-
-    // Add files separately with consistent naming
-    validPayments.forEach((payment, index) => {
-      if (payment.file) {
-        formDataToSend.append(`payment_${index}`, payment.file, payment.file.name);
-      }
-    });
-
-    // Debug logging
-    console.log('Sending payments:', JSON.stringify(paymentsData, null, 2));
-
-    // Get auth headers (don't set Content-Type for FormData)
-    const token = localStorage.getItem('token');
-    const headers = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    let response;
-    if (mode === 'add') {
-      response = await fetch(`${API_URL}/api/expenses`, {
-        method: 'POST',
-        headers: headers,
-        body: formDataToSend
-      });
-    } else if (mode === 'edit') {
-      response = await fetch(`${API_URL}/api/expenses/${location.state.expense._id}`, {
-        method: 'PUT',
-        headers: headers,
-        body: formDataToSend
-      });
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorMessage;
-      try {
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.message || errorData.error || 'Failed to save expense';
-      } catch {
-        errorMessage = errorText || 'Failed to save expense';
-      }
-      throw new Error(errorMessage);
-    }
-
-    const result = await response.json();
-    console.log('Success response:', result);
-    
-    alert(`Expense ${mode === 'add' ? 'added' : 'updated'} successfully!`);
-    navigate('/expenses', { state: { refreshExpenses: true } });
-  } catch (error) {
-    console.error('Error saving expense:', error);
-    alert(`Failed to ${mode} expense: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
   const addPaymentField = () => {
     setFormData({
       ...formData,
@@ -349,14 +303,12 @@ const AddExpensePage = () => {
     const updatedPayments = formData.payments.map((payment, i) => {
       if (i === index) {
         if (type === 'new') {
-          // Remove newly selected file
           return { ...payment, file: null };
         } else if (type === 'existing') {
-          // Mark existing file for removal
           return { 
             ...payment, 
             existingFile: { ...payment.existingFile, hasFile: false },
-            fileAction: 'remove'  // CRITICAL: Set the remove action
+            fileAction: 'remove'
           };
         }
       }
@@ -464,17 +416,16 @@ const AddExpensePage = () => {
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     disabled={mode === 'view'}
-                    max={new Date().toISOString().split('T')[0]} // Prevent future dates
+                    max={new Date().toISOString().split('T')[0]}
                     className="w-full pl-12 pr-4 py-3 border-2 border-blue-200 dark:border-gray-600 rounded-xl focus:ring-4 focus:ring-blue-200 dark:focus:ring-blue-800/50 focus:border-blue-500 dark:focus:border-blue-500 transition-all duration-300 text-lg disabled:bg-blue-50 disabled:text-blue-600 dark:disabled:bg-gray-700 dark:disabled:text-gray-400 bg-gradient-to-r from-white to-blue-25 dark:from-gray-700 dark:to-gray-600 dark:text-white font-medium"
                   />
                 </div>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">When did this expense occur?</p>
               </div>
 
               <div>
                 <label className="flex items-center gap-2 text-sm font-bold text-blue-800 dark:text-blue-300 mb-3">
                   <DollarSign size={16} />
-                  Quick Amount Preview
+                  Total Amount
                 </label>
                 <div className="p-3 bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-800/50 dark:to-indigo-700/50 rounded-xl border-2 border-blue-200 dark:border-gray-600">
                   <div className="flex items-center gap-2">
@@ -483,7 +434,6 @@ const AddExpensePage = () => {
                       {formatCurrency(calculateTotal())}
                     </span>
                   </div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Total amount (updates automatically)</p>
                 </div>
               </div>
 
@@ -1089,7 +1039,7 @@ const AddExpensePage = () => {
           </div>
 
           {/* Form Actions */}
-          {mode !== 'view' && (
+        {mode !== 'view' && (
             <div className="flex flex-col sm:flex-row justify-end gap-4">
               <button
                 type="button"

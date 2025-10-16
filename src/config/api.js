@@ -1,16 +1,17 @@
-// config/api.js
+// src/config/api.js
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
 // API URL Configuration
+
 const getApiUrl = () => {
-  // Check if we're in development or production
-  if (process.env.NODE_ENV === 'development') {
-    return process.env.REACT_APP_API_URL || 'http://localhost:5000';
-  }
+  // Force production URL if not in development
+  const apiUrl =  'https://i-expense.ikftech.com';
   
-  // For production, use environment variable or current domain
-  return process.env.REACT_APP_API_URL || window.location.origin;
+  // Debug log to check which URL is being used
+  console.log('🌐 API URL:', apiUrl);
+  
+  return apiUrl;
 };
 
 export const API_URL = getApiUrl();
@@ -24,24 +25,39 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token and tenant info
+// Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    // Priority: tenant_token > tenantToken > superAdminToken > token (legacy)
+    const tenantToken = localStorage.getItem('tenant_token') ||  // ✅ ADD THIS
+                        localStorage.getItem('tenantToken');
+    const superAdminToken = localStorage.getItem('superAdminToken');
+    const legacyToken = localStorage.getItem('token');
+    
+    const token = tenantToken || superAdminToken || legacyToken;
+    
+    // console.log('🔑 API Request:', {
+    //   url: config.url,
+    //   hasToken: !!token,
+    //   tokenPreview: token ? `${token.substring(0, 20)}...` : null
+    // });
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Add tenant info if available - but not required for development
-    const tenant = localStorage.getItem('tenant');
-    if (tenant) {
-      config.headers['X-Tenant-ID'] = tenant;
-    }
-    
-    // Set proper host header for development multi-tenant testing
-    if (process.env.NODE_ENV === 'development') {
-      // In development, we'll rely on the backend's localhost handling
-      // The backend should automatically assign demo tenant for localhost
+    // Add tenant ID header if available (for tenant-scoped requests)
+    const tenantData = localStorage.getItem('tenant_data') ||  // ✅ ADD THIS
+                       localStorage.getItem('tenant');
+    if (tenantData) {
+      try {
+        const tenant = JSON.parse(tenantData);
+        if (tenant._id) {
+          config.headers['X-Tenant-ID'] = tenant._id;
+        }
+      } catch (e) {
+        console.error('Error parsing tenant data:', e);
+      }
     }
     
     return config;
@@ -73,23 +89,43 @@ api.interceptors.response.use(
           break;
           
         case 401:
-          // Unauthorized - clear auth and redirect to login
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('tenant');
-          delete api.defaults.headers.common['Authorization'];
+          // Unauthorized - clear auth and redirect to appropriate login
+          const isSuperAdmin = !!localStorage.getItem('superAdminToken');
           
-          // Only show toast if not already on login page
-          if (!window.location.pathname.includes('/login')) {
-            toast.error('Session expired. Please login again.');
-            setTimeout(() => {
-              window.location.href = '/login';
-            }, 1000);
+          if (isSuperAdmin) {
+            localStorage.removeItem('superAdminToken');
+            localStorage.removeItem('superAdmin');
+            
+            if (!window.location.pathname.includes('/super-admin/login')) {
+              toast.error('Session expired. Please login again.');
+              setTimeout(() => {
+                window.location.href = '/super-admin/login';
+              }, 1000);
+            }
+          } else {
+            localStorage.removeItem('tenantToken');
+            localStorage.removeItem('tenant');
+            localStorage.removeItem('user');
+            localStorage.removeItem('token'); // Legacy
+            
+            if (!window.location.pathname.includes('/login')) {
+              toast.error('Session expired. Please login again.');
+              setTimeout(() => {
+                window.location.href = '/login';
+              }, 1000);
+            }
           }
           break;
           
         case 403:
-          toast.error(data?.message || 'Access denied. You don\'t have permission for this action.');
+          // Forbidden - check for specific tenant errors
+          if (data?.code === 'TENANT_SUSPENDED') {
+            toast.error('Your account has been suspended. Please contact support.');
+          } else if (data?.code === 'TRIAL_EXPIRED') {
+            toast.error('Your trial has expired. Please upgrade your plan.');
+          } else {
+            toast.error(data?.message || 'Access denied. You don\'t have permission for this action.');
+          }
           break;
           
         case 404:
@@ -144,8 +180,11 @@ export default api;
 export const apiUtils = {
   // Get auth headers manually if needed
   getAuthHeaders: () => {
-    const token = localStorage.getItem('token');
-    const tenant = localStorage.getItem('tenant');
+    const tenantToken = localStorage.getItem('tenantToken');
+    const superAdminToken = localStorage.getItem('superAdminToken');
+    const legacyToken = localStorage.getItem('token');
+    
+    const token = tenantToken || superAdminToken || legacyToken;
     
     const headers = {
       'Content-Type': 'application/json',
@@ -155,8 +194,16 @@ export const apiUtils = {
       headers.Authorization = `Bearer ${token}`;
     }
     
+    const tenant = localStorage.getItem('tenant');
     if (tenant) {
-      headers['X-Tenant-ID'] = tenant;
+      try {
+        const tenantData = JSON.parse(tenant);
+        if (tenantData._id) {
+          headers['X-Tenant-ID'] = tenantData._id;
+        }
+      } catch (e) {
+        console.error('Error parsing tenant data:', e);
+      }
     }
     
     return headers;
@@ -164,8 +211,11 @@ export const apiUtils = {
   
   // Get multipart form headers for file uploads
   getFormHeaders: () => {
-    const token = localStorage.getItem('token');
-    const tenant = localStorage.getItem('tenant');
+    const tenantToken = localStorage.getItem('tenantToken');
+    const superAdminToken = localStorage.getItem('superAdminToken');
+    const legacyToken = localStorage.getItem('token');
+    
+    const token = tenantToken || superAdminToken || legacyToken;
     
     const headers = {};
     
@@ -173,8 +223,16 @@ export const apiUtils = {
       headers.Authorization = `Bearer ${token}`;
     }
     
+    const tenant = localStorage.getItem('tenant');
     if (tenant) {
-      headers['X-Tenant-ID'] = tenant;
+      try {
+        const tenantData = JSON.parse(tenant);
+        if (tenantData._id) {
+          headers['X-Tenant-ID'] = tenantData._id;
+        }
+      } catch (e) {
+        console.error('Error parsing tenant data:', e);
+      }
     }
     
     // Don't set Content-Type for FormData - let browser set it with boundary
@@ -216,7 +274,26 @@ export const apiUtils = {
 
 // API endpoints constants
 export const ENDPOINTS = {
-  // Auth
+  // Public endpoints (no auth required)
+  PUBLIC: {
+    SIGNUP: '/api/public/signup',
+    LOGIN: '/api/public/login',
+    CHECK_SLUG: (slug) => `/api/public/check-slug/${slug}`,
+    TENANT_INFO: (slug) => `/api/public/tenant/${slug}`,
+    PLANS: '/api/public/plans',
+  },
+  
+  // Super Admin endpoints
+  SUPER_ADMIN: {
+    LOGIN: '/api/super-admin/auth/login',
+    ME: '/api/super-admin/auth/me',
+    DASHBOARD: '/api/super-admin/auth/dashboard',
+    TENANTS: '/api/super-admin/tenants',
+    ANALYTICS: '/api/super-admin/analytics',
+    SUBSCRIPTIONS: '/api/super-admin/subscriptions',
+  },
+  
+  // Auth (tenant users)
   AUTH: {
     LOGIN: '/api/auth/login',
     LOGOUT: '/api/auth/logout',
@@ -282,7 +359,15 @@ export const ENDPOINTS = {
     ALL: '/api/activities',
   },
   
-  // Tenant (for future multi-tenant support)
+  // Subscription
+  SUBSCRIPTION: {
+    USAGE: '/api/subscription/usage',
+    CHECK_LIMIT: (resource) => `/api/subscription/check/${resource}`,
+    PLANS: '/api/subscription/plans',
+    UPGRADE: '/api/subscription/upgrade',
+  },
+  
+  // Tenant
   TENANT: {
     PROFILE: '/api/tenant/profile',
     SETTINGS: '/api/tenant/settings',
@@ -346,4 +431,87 @@ export const seedDatabase = async () => {
     toast.error('Failed to seed database');
     throw error;
   }
+};
+
+// Tenant authentication helpers
+export const tenantAuth = {
+  // Save tenant auth data
+  saveAuthData: (data) => {
+    if (data.token) {
+      localStorage.setItem('tenantToken', data.token);
+    }
+    if (data.tenant) {
+      localStorage.setItem('tenant', JSON.stringify(data.tenant));
+    }
+    if (data.user) {
+      localStorage.setItem('user', JSON.stringify(data.user));
+    }
+  },
+  
+  // Clear tenant auth data
+  clearAuthData: () => {
+    localStorage.removeItem('tenantToken');
+    localStorage.removeItem('tenant');
+    localStorage.removeItem('user');
+    localStorage.removeItem('token'); // Legacy
+  },
+  
+  // Get current tenant
+  getTenant: () => {
+    try {
+      const tenant = localStorage.getItem('tenant');
+      return tenant ? JSON.parse(tenant) : null;
+    } catch (e) {
+      return null;
+    }
+  },
+  
+  // Get current user
+  getUser: () => {
+    try {
+      const user = localStorage.getItem('user');
+      return user ? JSON.parse(user) : null;
+    } catch (e) {
+      return null;
+    }
+  },
+  
+  // Check if authenticated
+  isAuthenticated: () => {
+    return !!localStorage.getItem('tenantToken');
+  },
+};
+
+// Super Admin authentication helpers
+export const superAdminAuth = {
+  // Save super admin auth data
+  saveAuthData: (data) => {
+    if (data.token) {
+      localStorage.setItem('superAdminToken', data.token);
+    }
+    if (data.superAdmin) {
+      localStorage.setItem('superAdmin', JSON.stringify(data.superAdmin));
+    }
+  },
+  
+  // Clear super admin auth data
+  clearAuthData: () => {
+    localStorage.removeItem('superAdminToken');
+    localStorage.removeItem('superAdmin');
+  },
+  
+  // Get current super admin
+  getSuperAdmin: () => {
+    try {
+      const superAdmin = localStorage.getItem('superAdmin');
+      return superAdmin ? JSON.parse(superAdmin) : null;
+    } catch (e) {
+      return null;
+    }
+  },
+  
+  // Check if authenticated
+  isAuthenticated: () => {
+    return !!localStorage.getItem('superAdminToken');
+  },
 };

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { useAuth } from '../../../../contexts/AuthContext';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const PermissionsPage = () => {
   const { user, hasPermission } = useAuth(); // Make sure hasPermission exists in your AuthContext

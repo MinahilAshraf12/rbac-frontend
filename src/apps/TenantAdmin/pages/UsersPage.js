@@ -16,10 +16,14 @@ import {
   Grid3X3,
   List,
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../../../config/api';
 import toast from 'react-hot-toast';
-import { useAuth } from '../../../../contexts/AuthContext';
-const API_URL = process.env.REACT_APP_API_URL;
+import { useAuth } from '../../../contexts/AuthContext';
+// Add these imports
+import { useSubscription } from '../../../contexts/SubscriptionContext';
+import UsageLimitWarning from '../../../shared/components/UsageLimitWarning';
+import UpgradeModal from '../../../shared/components/UpgradeModal';
+// const API_URL = process.env.REACT_APP_API_URL;
 
 // User View Modal Component - Moved outside and above the main component
 const UserViewModal = ({ user, onClose, onEdit, canUpdate }) => {
@@ -213,32 +217,32 @@ const UserModal = ({ user, roles, onClose, onSuccess }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      if (user) {
-        // Update user
-        await axios.put(`${API_URL}/api/users/${user._id}`, {
-          name: formData.name,
-          email: formData.email,
-          roleId: formData.roleId,
-          isActive: formData.isActive,
-        });
-        toast.success('User updated successfully');
-      } else {
-        // Create user
-        await axios.post(`${API_URL}/api/users`, formData);
-        toast.success('User created successfully');
-      }
-      onSuccess();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Operation failed');
-    } finally {
-      setLoading(false);
+  try {
+    if (user) {
+      // ✅ Update user
+      await api.put(`/api/users/${user._id}`, {
+        name: formData.name,
+        email: formData.email,
+        roleId: formData.roleId,
+        isActive: formData.isActive,
+      });
+      toast.success('User updated successfully');
+    } else {
+      // ✅ Create user
+      await api.post('/api/users', formData);
+      toast.success('User created successfully');
     }
-  };
+    onSuccess();
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Operation failed');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <motion.div
@@ -395,7 +399,9 @@ const UsersPage = () => {
   const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
   const [isMobile, setIsMobile] = useState(false);
   const [viewingUser, setViewingUser] = useState(null); // For user details modal
-
+ const { checkLimit } = useSubscription();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const userLimit = checkLimit('user');
   // Detect mobile screen size
   useEffect(() => {
     const checkMobile = () => {
@@ -413,47 +419,49 @@ const UsersPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, searchTerm, selectedRole, selectedStatus]);
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '10',
-        ...(searchTerm && { search: searchTerm }),
-        ...(selectedRole && { role: selectedRole }),
-        ...(selectedStatus && { status: selectedStatus }),
-      });
+ const fetchUsers = useCallback(async () => {
+  try {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: '10',
+      ...(searchTerm && { search: searchTerm }),
+      ...(selectedRole && { role: selectedRole }),
+      ...(selectedStatus && { status: selectedStatus }),
+    });
 
-      const response = await axios.get(`${API_URL}/api/users?${params}`);
+    // ✅ Use api.js instead of axios
+    const response = await api.get(`/api/users?${params}`);
 
-      setUsers(response.data.data);
-      setTotalPages(response.data.pagination.pages);
-    } catch (error) {
-      toast.error('Error fetching users');
-    } finally {
-      setLoading(false);
-    }
-  }, [page, searchTerm, selectedRole, selectedStatus]);
+    setUsers(response.data.data);
+    setTotalPages(response.data.pagination.pages);
+  } catch (error) {
+    toast.error('Error fetching users');
+  } finally {
+    setLoading(false);
+  }
+}, [page, searchTerm, selectedRole, selectedStatus]);
 
-  const fetchRoles = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/roles`);
-      setRoles(response.data.data);
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-    }
-  };
+const fetchRoles = async () => {
+  try {
+    // ✅ Use api.js instead of axios
+    const response = await api.get('/api/roles');
+    setRoles(response.data.data);
+  } catch (error) {
+    console.error('Error fetching roles:', error);
+  }
+};
+ const handleDeleteUser = async (userId) => {
+  if (!window.confirm('Are you sure you want to delete this user?')) return;
 
-  const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      await axios.delete(`${API_URL}/api/users/${userId}`);
-      toast.success('User deleted successfully');
-      fetchUsers();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Error deleting user');
-    }
-  };
+  try {
+    // ✅ Use api.js instead of axios
+    await api.delete(`/api/users/${userId}`);
+    toast.success('User deleted successfully');
+    fetchUsers();
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Error deleting user');
+  }
+};
 
   const canCreate = hasPermission('users', 'create');
   const canUpdate = hasPermission('users', 'update');
@@ -533,7 +541,17 @@ const UsersPage = () => {
           </div>
         </div>
       </div>
-
+ {userLimit.percentage > 75 && (
+        <div className="px-4 py-3 sm:px-6">
+          <UsageLimitWarning
+            feature="user"
+            current={userLimit.current}
+            limit={userLimit.limit}
+            percentage={userLimit.percentage}
+            onUpgrade={() => setShowUpgradeModal(true)}
+          />
+        </div>
+      )}
       {/* Search Bar - Mobile Priority */}
       <div className="px-4 py-3 sm:px-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="relative">
@@ -926,6 +944,13 @@ const UsersPage = () => {
           />
         )}
       </AnimatePresence>
+      {/* ADD THIS - Upgrade Modal at the end before closing </motion.div> */}
+<UpgradeModal
+  isOpen={showUpgradeModal}
+  onClose={() => setShowUpgradeModal(false)}
+  currentPlan="free"
+  limitType="user"
+/>
     </motion.div>
   );
 };

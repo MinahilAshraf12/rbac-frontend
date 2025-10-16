@@ -1,77 +1,85 @@
-// import React, { useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+// src/apps/TenantAdmin/Sidebar.js
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Crown } from 'lucide-react';
 import {
   LayoutDashboard,
   Users,
   Shield,
   FolderTree,
-  // Settings,
   ChevronRight,
   Receipt,
   X,
   Plus,
-  // Home,
-  // Menu,
 } from 'lucide-react';
-import { useAuth } from '../../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
-const Sidebar = ({ isOpen, onToggle, onItemClick }) => {
+const Sidebar = ({ isOpen, onToggle, onItemClick, tenantSlug }) => {
   const location = useLocation();
   const { hasPermission } = useAuth();
+  const { slug } = useParams();
+
+  // Use slug from params if tenantSlug not provided
+  const currentSlug = tenantSlug || slug;
+
+  console.log('🔗 Sidebar tenant slug:', currentSlug);
 
   const menuItems = [
     {
       title: 'Dashboard',
       icon: LayoutDashboard,
-      path: '/dashboard',
+      path: `/tenant/${currentSlug}/dashboard`,
       permission: null,
       shortTitle: 'Home',
     },
     {
       title: 'Expenses',
       icon: Receipt,
-      path: '/expenses',
+      path: `/tenant/${currentSlug}/expenses`,
       permission: { resource: 'expenses', action: 'read' },
       shortTitle: 'Expenses',
     },
     {
       title: 'Add Expense',
       icon: Plus,
-      path: '/add-expense',
+      path: `/tenant/${currentSlug}/add-expense`,
       permission: { resource: 'expenses', action: 'create' },
       shortTitle: 'Add',
-      highlight: true, // Special styling for quick access
+      highlight: true,
     },
     {
       title: 'Users',
       icon: Users,
-      path: '/users',
+      path: `/tenant/${currentSlug}/users`,
       permission: { resource: 'users', action: 'read' },
       shortTitle: 'Users',
     },
     {
       title: 'Roles',
       icon: Shield,
-      path: '/roles',
+      path: `/tenant/${currentSlug}/roles`,
       permission: { resource: 'roles', action: 'read' },
       shortTitle: 'Roles',
     },
     {
       title: 'Categories',
       icon: FolderTree,
-      path: '/categories',
+      path: `/tenant/${currentSlug}/categories`,
       permission: { resource: 'categories', action: 'read' },
       shortTitle: 'Categories',
+    },
+    {
+      title: 'Subscription',
+      icon: Crown,
+      path: `/tenant/${currentSlug}/subscription`,
+      permission: null,
+      shortTitle: 'Plan',
     },
   ];
 
   const filteredMenuItems = menuItems.filter(item => 
     !item.permission || hasPermission(item.permission.resource, item.permission.action)
   );
-
-  // Only close sidebar on actual navigation, not when component mounts
-  // Remove the auto-close effect that was causing the blinking
 
   return (
     <>
@@ -131,8 +139,8 @@ const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, is
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <Shield className="w-5 h-5 text-white" />
             </div>
-            <h1 className=" font-bold text-gray-900 dark:text-white">
-              Expense Managment Tool
+            <h1 className="font-bold text-gray-900 dark:text-white">
+              Expense Management Tool
             </h1>
           </div>
           <button
@@ -174,14 +182,14 @@ const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, is
       {/* Navigation Menu - Mobile optimized */}
       <nav className={`flex-1 ${isMobile ? 'p-3' : 'p-4'} space-y-1 overflow-y-auto`}>
         {/* Quick Actions Section for Mobile */}
-        {isMobile && (
+        {isMobile && menuItems.length > 0 && (
           <div className="mb-4">
             <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
               Quick Actions
             </h3>
             <div className="grid grid-cols-2 gap-2">
               <Link
-                to="/add-expense"
+                to={menuItems.find(m => m.highlight)?.path || '#'}
                 onClick={handleItemClick}
                 className="flex flex-col items-center p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-800 transition-colors hover:bg-primary-100 dark:hover:bg-primary-900/30 touch-manipulation"
               >
@@ -189,7 +197,7 @@ const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, is
                 <span className="text-xs font-medium text-primary-700 dark:text-primary-300">Add Expense</span>
               </Link>
               <Link
-                to="/expenses"
+                to={menuItems.find(m => m.title === 'Expenses')?.path || '#'}
                 onClick={handleItemClick}
                 className="flex flex-col items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 touch-manipulation"
               >
@@ -261,7 +269,7 @@ const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, is
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Made with ❤️  by ikFTech
+              Made with ❤️ by ikFTech
             </p>
           </div>
         </div>

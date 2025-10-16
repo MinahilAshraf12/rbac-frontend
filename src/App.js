@@ -33,17 +33,25 @@ function App() {
     initializeApp();
   }, []);
 
-  const initializeApp = async () => {
-    try {
-      const hostname = window.location.hostname;
-      const pathname = window.location.pathname;
-      const domainType = getDomainType(hostname);
+const initializeApp = async () => {
+  try {
+    const hostname = window.location.hostname;
+    const pathname = window.location.pathname;
+    const domainType = getDomainType(hostname);
+    
+    console.log('App Init:', { hostname, pathname, domainType });
+
+    // CRITICAL FIX: Redirect subdomains to path-based routing
+    if (hostname !== 'localhost' && 
+        hostname !== '127.0.0.1' && 
+        hostname !== 'i-expense.ikftech.com' &&
+        !hostname.startsWith('admin.')) {
       
-      console.log('🔍 App Initialization:', { 
-        domainType, 
-        hostname, 
-        pathname 
-      });
+      // This is a tenant subdomain - redirect to path-based
+      const tenantSlug = hostname.split('.')[0];
+      window.location.href = `https://i-expense.ikftech.com/tenant/${tenantSlug}${pathname}`;
+      return;
+    }
 
       // ============================================
       // SUPER ADMIN ROUTES

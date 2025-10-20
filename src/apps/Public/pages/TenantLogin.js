@@ -18,76 +18,75 @@ const TenantLogin = () => {
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-    try {
-      console.log('🔐 Attempting login with:', { email: formData.email });
+  try {
+    console.log('🔐 Attempting login with:', { email: formData.email });
+    
+    const response = await api.post(ENDPOINTS.PUBLIC.LOGIN, formData);
+    
+    console.log('🔥 Login response:', response.data);
+    
+    if (response.data.success) {
+      console.log('✅ Login successful');
       
-      const response = await api.post(ENDPOINTS.PUBLIC.LOGIN, formData);
+      const { token, tenant, user } = response.data;
       
-      console.log('📥 Login response:', response.data);
-      
-      if (response.data.success) {
-        console.log('✅ Login successful');
-        
-        const { token, tenant, user } = response.data;
-        
-        // Validate response data
-        if (!token || !tenant || !user) {
-          throw new Error('Invalid response from server');
-        }
-        
-        // Clear any existing auth data first
-        localStorage.removeItem('tenantToken');
-        localStorage.removeItem('tenant_token');
-        localStorage.removeItem('tenant');
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        
-        // Save to localStorage with consistent key naming
-        localStorage.setItem('tenantToken', token);
-        localStorage.setItem('tenant', JSON.stringify(tenant));
-        localStorage.setItem('user', JSON.stringify(user));
-        
-        console.log('✅ Saved to localStorage');
-        console.log('🔑 Token:', token.substring(0, 20) + '...');
-        console.log('🏢 Tenant:', tenant.name, '(' + tenant.slug + ')');
-        console.log('👤 User:', user.name, '(' + user.email + ')');
-        
-        toast.success('Login successful!');
-        
-        // Small delay to ensure localStorage is written
-        setTimeout(() => {
-          // Build tenant URL with /dashboard
-          const isProduction = process.env.NODE_ENV === 'production';
-          
-          if (isProduction) {
-            // Production: Redirect to subdomain
-            window.location.href = `https://${tenant.slug}.i-expense.ikftech.com/dashboard`;
-          } else {
-            // Development: Redirect to /tenant/slug/dashboard
-            window.location.href = `/tenant/${tenant.slug}/dashboard`;
-          }
-        }, 500);
+      if (!token || !tenant || !user) {
+        throw new Error('Invalid response from server');
       }
-    } catch (err) {
-      console.error('❌ Login error:', err);
-      console.error('❌ Error response:', err.response?.data);
       
-      const message = err.response?.data?.message || err.message || 'Login failed';
-      setError(message);
-      toast.error(message);
-      
-      // Clear any partial auth data on error
+      // Clear existing auth data
       localStorage.removeItem('tenantToken');
+      localStorage.removeItem('tenant_token');
       localStorage.removeItem('tenant');
       localStorage.removeItem('user');
-    } finally {
-      setLoading(false);
+      localStorage.removeItem('token');
+      
+      // Save new auth data
+      localStorage.setItem('tenantToken', token);
+      localStorage.setItem('tenant', JSON.stringify(tenant));
+      localStorage.setItem('user', JSON.stringify(user));
+      
+      console.log('✅ Saved to localStorage');
+      console.log('🔑 Token:', token.substring(0, 20) + '...');
+      console.log('🏢 Tenant:', tenant.name, '(' + tenant.slug + ')');
+      console.log('👤 User:', user.name, '(' + user.email + ')');
+      
+      toast.success('Login successful!');
+      
+      // ✅ ALWAYS USE PATH-BASED ROUTING
+      setTimeout(() => {
+        // ❌ OLD CODE - DELETE THIS:
+        // const isProduction = process.env.NODE_ENV === 'production';
+        // if (isProduction) {
+        //   window.location.href = `https://${tenant.slug}.i-expense.ikftech.com/dashboard`;
+        // } else {
+        //   window.location.href = `/tenant/${tenant.slug}/dashboard`;
+        // }
+
+        // ✅ NEW CODE - ALWAYS USE PATH-BASED:
+        window.location.href = `/tenant/${tenant.slug}/dashboard`;
+      }, 500);
     }
-  };
+  } catch (err) {
+    console.error('❌ Login error:', err);
+    console.error('❌ Error response:', err.response?.data);
+    
+    const message = err.response?.data?.message || err.message || 'Login failed';
+    setError(message);
+    toast.error(message);
+    
+    // Clear partial auth data
+    localStorage.removeItem('tenantToken');
+    localStorage.removeItem('tenant');
+    localStorage.removeItem('user');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">

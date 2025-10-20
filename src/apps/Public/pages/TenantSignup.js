@@ -268,7 +268,7 @@ const handleSubmit = async (e) => {
                         errors.slug ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                       }`}
                       placeholder="acme"
-                      pattern="[a-z0-9-]+"
+                     pattern="[a-z0-9\-]+" 
                       minLength={3}
                       maxLength={30}
                     />

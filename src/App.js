@@ -37,33 +37,55 @@ const initializeApp = async () => {
   try {
     const hostname = window.location.hostname;
     const pathname = window.location.pathname;
-    const domainType = getDomainType(hostname);
     
-    console.log('App Init:', { hostname, pathname, domainType });
+    console.log('🌐 App Init:', { hostname, pathname });
 
-    // ✅ REMOVE THIS REDIRECT FOR VERCEL DEPLOYMENT
-    // Comment out or delete these lines:
-    /*
+    // ============================================
+    // SUBDOMAIN DETECTION (When DNS allows)
+    // ============================================
     if (hostname !== 'localhost' && 
         hostname !== '127.0.0.1' && 
         hostname !== 'i-expense.ikftech.com' &&
-        !hostname.startsWith('admin.')) {
+        hostname !== 'www.i-expense.ikftech.com' &&
+        hostname !== 'admin.i-expense.ikftech.com') {
       
-      const tenantSlug = hostname.split('.')[0];
-      window.location.href = `https://i-expense.ikftech.com/tenant/${tenantSlug}${pathname}`;
-      return;
+      // This might be a tenant subdomain
+      if (hostname.endsWith('.i-expense.ikftech.com')) {
+        const tenantSlug = hostname.replace('.i-expense.ikftech.com', '');
+        
+        console.log('🏢 Subdomain detected:', tenantSlug);
+        
+        // Try to load tenant
+        try {
+          const tenantInfo = await fetchTenantInfo(tenantSlug);
+          
+          if (tenantInfo && tenantInfo.status !== 'suspended') {
+            console.log('✅ Tenant loaded from subdomain:', tenantInfo.name);
+            setTenant(tenantInfo);
+            setAppType('tenant');
+            setLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.log('⚠️ Subdomain not configured, falling back to path-based');
+          // Fall through to path-based routing
+        }
+      }
     }
-    */
 
-    // ✅ Keep the rest as is
-    if (pathname.startsWith('/super-admin')) {
+    // ============================================
+    // SUPER ADMIN
+    // ============================================
+    if (pathname.startsWith('/super-admin') || hostname === 'admin.i-expense.ikftech.com') {
       console.log('✅ Super Admin route detected');
       setAppType('super-admin');
       setLoading(false);
       return;
     }
 
-    // Extract tenant from path: /tenant/:slug
+    // ============================================
+    // PATH-BASED TENANT ROUTING (Fallback)
+    // ============================================
     const pathMatch = pathname.match(/^\/tenant\/([^\/]+)/);
     if (pathMatch) {
       const tenantSlug = pathMatch[1];
@@ -79,21 +101,23 @@ const initializeApp = async () => {
       }
 
       if (tenantInfo.status === 'suspended') {
-        setError('This account has been suspended. Please contact support.');
+        setError('This account has been suspended.');
         setAppType('public');
         setLoading(false);
         return;
       }
 
-      console.log('✅ Tenant loaded:', tenantInfo.name);
+      console.log('✅ Tenant loaded from path:', tenantInfo.name);
       setTenant(tenantInfo);
       setAppType('tenant');
       setLoading(false);
       return;
     }
 
-    // Public routes
-    console.log('✅ Public domain - showing landing/signup/login');
+    // ============================================
+    // PUBLIC ROUTES
+    // ============================================
+    console.log('✅ Public domain');
     setAppType('public');
     setLoading(false);
 

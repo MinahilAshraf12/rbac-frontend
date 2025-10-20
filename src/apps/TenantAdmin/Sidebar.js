@@ -13,14 +13,16 @@ import {
   Plus,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext'; // ✅ ADD THIS LINE
 
 const Sidebar = ({ isOpen, onToggle, onItemClick, tenantSlug }) => {
   const location = useLocation();
   const { hasPermission } = useAuth();
+  const { tenant } = useTenant(); // ✅ NOW THIS WILL WORK
   const { slug } = useParams();
 
-  // Use slug from params if tenantSlug not provided
-  const currentSlug = tenantSlug || slug;
+  // Use slug from params or tenant context
+  const currentSlug = tenantSlug || tenant?.slug || slug;
 
   console.log('🔗 Sidebar tenant slug:', currentSlug);
 

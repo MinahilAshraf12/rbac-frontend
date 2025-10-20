@@ -160,23 +160,16 @@ const handleSubmit = async (e) => {
       const { token, tenant, user } = response.data;
       
       // Save auth data
+      localStorage.clear();
       localStorage.setItem('tenantToken', token);
       localStorage.setItem('tenant', JSON.stringify(tenant));
       localStorage.setItem('user', JSON.stringify(user));
       
-      toast.success(`Welcome to ${tenant.name}!`);
+      toast.success(`Welcome to ${tenant.name}! 🎉`);
       
-      // Build tenant URL with /dashboard
-      const isProduction = process.env.NODE_ENV === 'production';
-      
+      // ✅ PATH-BASED REDIRECT (Works without wildcard DNS)
       setTimeout(() => {
-        if (isProduction) {
-          // Production: Redirect to subdomain
-          window.location.href = `https://${tenant.slug}.i-expense.ikftech.com/dashboard`;
-        } else {
-          // Development: Redirect to /tenant/slug/dashboard
-          window.location.href = `/tenant/${tenant.slug}/dashboard`;
-        }
+        window.location.href = `/tenant/${tenant.slug}/dashboard`;
       }, 1000);
     }
   } catch (error) {

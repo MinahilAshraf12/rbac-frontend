@@ -17,72 +17,36 @@ const TenantLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
   e.preventDefault();
   setError('');
   setLoading(true);
 
   try {
-    console.log('🔐 Attempting login with:', { email: formData.email });
-    
     const response = await api.post(ENDPOINTS.PUBLIC.LOGIN, formData);
     
-    console.log('🔥 Login response:', response.data);
-    
     if (response.data.success) {
-      console.log('✅ Login successful');
-      
       const { token, tenant, user } = response.data;
       
-      if (!token || !tenant || !user) {
-        throw new Error('Invalid response from server');
-      }
-      
-      // Clear existing auth data
-      localStorage.removeItem('tenantToken');
-      localStorage.removeItem('tenant_token');
-      localStorage.removeItem('tenant');
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      
-      // Save new auth data
+      // Save auth data
+      localStorage.clear();
       localStorage.setItem('tenantToken', token);
       localStorage.setItem('tenant', JSON.stringify(tenant));
       localStorage.setItem('user', JSON.stringify(user));
       
-      console.log('✅ Saved to localStorage');
-      console.log('🔑 Token:', token.substring(0, 20) + '...');
-      console.log('🏢 Tenant:', tenant.name, '(' + tenant.slug + ')');
-      console.log('👤 User:', user.name, '(' + user.email + ')');
+      toast.success(`Welcome back, ${user.name}!`);
       
-      toast.success('Login successful!');
-      
-      // ✅ ALWAYS USE PATH-BASED ROUTING
+      // ✅ SIMPLE PATH-BASED REDIRECT (Always works!)
       setTimeout(() => {
-        // ❌ OLD CODE - DELETE THIS:
-        // const isProduction = process.env.NODE_ENV === 'production';
-        // if (isProduction) {
-        //   window.location.href = `https://${tenant.slug}.i-expense.ikftech.com/dashboard`;
-        // } else {
-        //   window.location.href = `/tenant/${tenant.slug}/dashboard`;
-        // }
-
-        // ✅ NEW CODE - ALWAYS USE PATH-BASED:
         window.location.href = `/tenant/${tenant.slug}/dashboard`;
       }, 500);
     }
   } catch (err) {
     console.error('❌ Login error:', err);
-    console.error('❌ Error response:', err.response?.data);
-    
-    const message = err.response?.data?.message || err.message || 'Login failed';
+    const message = err.response?.data?.message || 'Login failed';
     setError(message);
     toast.error(message);
-    
-    // Clear partial auth data
-    localStorage.removeItem('tenantToken');
-    localStorage.removeItem('tenant');
-    localStorage.removeItem('user');
+    localStorage.clear();
   } finally {
     setLoading(false);
   }

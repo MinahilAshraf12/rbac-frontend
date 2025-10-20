@@ -41,74 +41,69 @@ const initializeApp = async () => {
     
     console.log('App Init:', { hostname, pathname, domainType });
 
-    // CRITICAL FIX: Redirect subdomains to path-based routing
+    // ✅ REMOVE THIS REDIRECT FOR VERCEL DEPLOYMENT
+    // Comment out or delete these lines:
+    /*
     if (hostname !== 'localhost' && 
         hostname !== '127.0.0.1' && 
         hostname !== 'i-expense.ikftech.com' &&
         !hostname.startsWith('admin.')) {
       
-      // This is a tenant subdomain - redirect to path-based
       const tenantSlug = hostname.split('.')[0];
       window.location.href = `https://i-expense.ikftech.com/tenant/${tenantSlug}${pathname}`;
       return;
     }
+    */
 
-      // ============================================
-      // SUPER ADMIN ROUTES
-      // ============================================
-      if (pathname.startsWith('/super-admin')) {
-        console.log('✅ Super Admin route detected');
-        setAppType('super-admin');
-        setLoading(false);
-        return;
-      }
-
-      // ============================================
-      // TENANT SUBDOMAIN OR PATH-BASED ROUTING
-      // ============================================
-      const tenantSlug = getTenantSlug(hostname);
-      
-      if (tenantSlug) {
-        console.log('🏢 Tenant detected:', tenantSlug);
-        
-        // Fetch tenant info from backend
-        const tenantInfo = await fetchTenantInfo(tenantSlug);
-        
-        if (!tenantInfo) {
-          setError(`Organization "${tenantSlug}" not found`);
-          setAppType('public');
-          setLoading(false);
-          return;
-        }
-
-        if (tenantInfo.status === 'suspended') {
-          setError('This account has been suspended. Please contact support.');
-          setAppType('public');
-          setLoading(false);
-          return;
-        }
-
-        console.log('✅ Tenant loaded:', tenantInfo.name);
-        setTenant(tenantInfo);
-        setAppType('tenant');
-        setLoading(false);
-        return;
-      }
-
-      // ============================================
-      // PUBLIC ROUTES - Main Domain
-      // ============================================
-      console.log('✅ Public domain - showing landing/signup/login');
-      setAppType('public');
+    // ✅ Keep the rest as is
+    if (pathname.startsWith('/super-admin')) {
+      console.log('✅ Super Admin route detected');
+      setAppType('super-admin');
       setLoading(false);
-
-    } catch (err) {
-      console.error('❌ App initialization error:', err);
-      setError(err.message || 'Failed to initialize application');
-      setAppType('public');
-      setLoading(false);
+      return;
     }
-  };
+
+    // Extract tenant from path: /tenant/:slug
+    const pathMatch = pathname.match(/^\/tenant\/([^\/]+)/);
+    if (pathMatch) {
+      const tenantSlug = pathMatch[1];
+      console.log('🏢 Tenant detected from path:', tenantSlug);
+      
+      const tenantInfo = await fetchTenantInfo(tenantSlug);
+      
+      if (!tenantInfo) {
+        setError(`Organization "${tenantSlug}" not found`);
+        setAppType('public');
+        setLoading(false);
+        return;
+      }
+
+      if (tenantInfo.status === 'suspended') {
+        setError('This account has been suspended. Please contact support.');
+        setAppType('public');
+        setLoading(false);
+        return;
+      }
+
+      console.log('✅ Tenant loaded:', tenantInfo.name);
+      setTenant(tenantInfo);
+      setAppType('tenant');
+      setLoading(false);
+      return;
+    }
+
+    // Public routes
+    console.log('✅ Public domain - showing landing/signup/login');
+    setAppType('public');
+    setLoading(false);
+
+  } catch (err) {
+    console.error('❌ App initialization error:', err);
+    setError(err.message || 'Failed to initialize application');
+    setAppType('public');
+    setLoading(false);
+  }
+};
 
   if (loading) {
     return <LoadingScreen />;

@@ -4,7 +4,7 @@ import { X, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_URL = 'https://i-expense.ikftech.com' || 'http://localhost:5000';
 
 const TenantModal = ({ tenant, onClose, onSuccess }) => {
   const isEditMode = !!tenant;

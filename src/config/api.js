@@ -5,13 +5,13 @@ import toast from 'react-hot-toast';
 // API URL Configuration
 
 const getApiUrl = () => {
-  // Force production URL if not in development
-  const apiUrl =  'https://i-expense.ikftech.com';
+  // ✅ Production: Always use main domain
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://i-expense.ikftech.com';
+  }
   
-  // Debug log to check which URL is being used
-  console.log('🌐 API URL:', apiUrl);
-  
-  return apiUrl;
+  // Development
+  return process.env.REACT_APP_API_URL || 'http://localhost:5000';
 };
 
 export const API_URL = getApiUrl();

@@ -1,12 +1,11 @@
 // src/pages/auth/TenantLogin.jsx
 import React, { useState } from 'react';
-import { Link,  useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Building2, Mail, Lock, AlertCircle } from 'lucide-react';
-import api, { ENDPOINTS} from '../../../config/api';
+import api, { ENDPOINTS } from '../../../config/api';
 import toast from 'react-hot-toast';
 
 const TenantLogin = () => {
-  // const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const slugFromUrl = searchParams.get('slug');
   const isNewAccount = searchParams.get('new') === 'true';
@@ -18,48 +17,77 @@ const TenantLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-  try {
-    const response = await api.post(ENDPOINTS.PUBLIC.LOGIN, formData);
-    
-    if (response.data.success) {
-      console.log('✅ Login successful');
+    try {
+      console.log('🔐 Attempting login with:', { email: formData.email });
       
-      const { token, tenant, user } = response.data;
+      const response = await api.post(ENDPOINTS.PUBLIC.LOGIN, formData);
       
-      // Save to localStorage
-      localStorage.setItem('tenantToken', token);
-      localStorage.setItem('tenant', JSON.stringify(tenant));
-      localStorage.setItem('user', JSON.stringify(user));
+      console.log('📥 Login response:', response.data);
       
-      console.log('✅ Saved to localStorage');
-      
-      toast.success('Login successful!');
-      
-      // Build tenant URL with /dashboard
-      const isProduction = process.env.NODE_ENV === 'production';
-      
-      if (isProduction) {
-        // Production: Redirect to subdomain
-        window.location.href = `https://${tenant.slug}.i-expense.ikftech.com/dashboard`;
-      } else {
-        // Development: Redirect to /tenant/slug/dashboard
-        window.location.href = `/tenant/${tenant.slug}/dashboard`;
+      if (response.data.success) {
+        console.log('✅ Login successful');
+        
+        const { token, tenant, user } = response.data;
+        
+        // Validate response data
+        if (!token || !tenant || !user) {
+          throw new Error('Invalid response from server');
+        }
+        
+        // Clear any existing auth data first
+        localStorage.removeItem('tenantToken');
+        localStorage.removeItem('tenant_token');
+        localStorage.removeItem('tenant');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        
+        // Save to localStorage with consistent key naming
+        localStorage.setItem('tenantToken', token);
+        localStorage.setItem('tenant', JSON.stringify(tenant));
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('✅ Saved to localStorage');
+        console.log('🔑 Token:', token.substring(0, 20) + '...');
+        console.log('🏢 Tenant:', tenant.name, '(' + tenant.slug + ')');
+        console.log('👤 User:', user.name, '(' + user.email + ')');
+        
+        toast.success('Login successful!');
+        
+        // Small delay to ensure localStorage is written
+        setTimeout(() => {
+          // Build tenant URL with /dashboard
+          const isProduction = process.env.NODE_ENV === 'production';
+          
+          if (isProduction) {
+            // Production: Redirect to subdomain
+            window.location.href = `https://${tenant.slug}.i-expense.ikftech.com/dashboard`;
+          } else {
+            // Development: Redirect to /tenant/slug/dashboard
+            window.location.href = `/tenant/${tenant.slug}/dashboard`;
+          }
+        }, 500);
       }
+    } catch (err) {
+      console.error('❌ Login error:', err);
+      console.error('❌ Error response:', err.response?.data);
+      
+      const message = err.response?.data?.message || err.message || 'Login failed';
+      setError(message);
+      toast.error(message);
+      
+      // Clear any partial auth data on error
+      localStorage.removeItem('tenantToken');
+      localStorage.removeItem('tenant');
+      localStorage.removeItem('user');
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    const message = err.response?.data?.message || 'Login failed';
-    setError(message);
-    toast.error(message);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">

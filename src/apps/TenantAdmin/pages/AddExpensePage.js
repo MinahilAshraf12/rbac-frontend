@@ -20,7 +20,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../../config/api'; 
 
-const API_URL = process.env.REACT_APP_API_URL;
+const API_URL = 'https://i-expense.ikftech.com';
 
 const AddExpensePage = () => {
   const navigate = useNavigate();

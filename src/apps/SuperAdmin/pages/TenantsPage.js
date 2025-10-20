@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import TenantModal from '../components/TenantModal';
 import TenantDetailsModal from '../components/TenantDetailsModal';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://i-expense.ikftech.com';
+const API_URL =  'http://localhost:5000';
 
 const TenantsPage = () => {
   const [tenants, setTenants] = useState([]);

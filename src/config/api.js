@@ -5,13 +5,7 @@ import toast from 'react-hot-toast';
 // API URL Configuration
 
 const getApiUrl = () => {
-  // ✅ Production: Always use main domain
-  if (process.env.NODE_ENV === 'production') {
-    return 'https://i-expense.ikftech.com';
-  }
-  
-  // Development
-  return process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  return 'https://rbac-dashboard-2.onrender.com'; // ✅ Direct backend
 };
 
 export const API_URL = getApiUrl();

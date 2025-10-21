@@ -4,8 +4,15 @@ import toast from 'react-hot-toast';
 // ============================================
 // API URL Configuration
 // ============================================
+// src/config/api.js
 const getApiUrl = () => {
-  return 'https://rbac-dashboard-2.onrender.com';
+  // Production: Use direct backend URL
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://rbac-dashboard-2.onrender.com'; // ✅ Direct backend
+  }
+  
+  // Development
+  return process.env.REACT_APP_API_URL || 'http://localhost:5000';
 };
 
 export const API_URL = getApiUrl();

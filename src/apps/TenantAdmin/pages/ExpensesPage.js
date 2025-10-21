@@ -32,7 +32,7 @@ import { useTenant } from '../../../contexts/TenantContext';
 import api from '../../../config/api'; 
 
 // Line 32: Update API_URL
-const API_URL = process.env.REACT_APP_API_URL || 'https://rbac-dashboard-2.onrender.com';
+const API_URL =  'https://rbac-dashboard-2.onrender.com';
 
 console.log('🌐 API_URL:', API_URL); // Add this for debugging
 

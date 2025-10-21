@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Building2, Mail, Lock, AlertCircle } from 'lucide-react';
-import api, { ENDPOINTS } from '../../../config/api';
+import { API_URL } from '../../../config/api';
 import toast from 'react-hot-toast';
 
 const TenantLogin = () => {
@@ -18,75 +18,78 @@ const TenantLogin = () => {
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setLoading(true);
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-  try {
-    console.log('🔐 Attempting login with:', { email: formData.email });
-    
-    const response = await api.post(ENDPOINTS.PUBLIC.LOGIN, formData);
-    
-    console.log('🔥 Login response:', response.data);
-    
-    if (response.data.success) {
-      console.log('✅ Login successful');
+    try {
+      console.log('🔐 Attempting login with:', { email: formData.email });
       
-      const { token, tenant, user } = response.data;
+      // ✅ Using native fetch instead of axios (works better)
+      const response = await fetch(`${API_URL}/api/public/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
       
-      if (!token || !tenant || !user) {
-        throw new Error('Invalid response from server');
+      console.log('🔥 Login response:', data);
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
       }
       
-      // Clear existing auth data
+      if (data.success) {
+        console.log('✅ Login successful');
+        
+        const { token, tenant, user } = data;
+        
+        if (!token || !tenant || !user) {
+          throw new Error('Invalid response from server');
+        }
+        
+        // Clear existing auth data
+        localStorage.removeItem('tenantToken');
+        localStorage.removeItem('tenant_token');
+        localStorage.removeItem('tenant');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        
+        // Save new auth data
+        localStorage.setItem('tenantToken', token);
+        localStorage.setItem('tenant', JSON.stringify(tenant));
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        console.log('✅ Saved to localStorage');
+        console.log('🔑 Token:', token.substring(0, 20) + '...');
+        console.log('🏢 Tenant:', tenant.name, '(' + tenant.slug + ')');
+        console.log('👤 User:', user.name, '(' + user.email + ')');
+        
+        toast.success('Login successful!');
+        
+        setTimeout(() => {
+          window.location.href = `/tenant/${tenant.slug}/dashboard`;
+        }, 500);
+      }
+    } catch (err) {
+      console.error('❌ Login error:', err);
+      
+      const message = err.message || 'Login failed';
+      setError(message);
+      toast.error(message);
+      
+      // Clear partial auth data
       localStorage.removeItem('tenantToken');
-      localStorage.removeItem('tenant_token');
       localStorage.removeItem('tenant');
       localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      
-      // Save new auth data
-      localStorage.setItem('tenantToken', token);
-      localStorage.setItem('tenant', JSON.stringify(tenant));
-      localStorage.setItem('user', JSON.stringify(user));
-      
-      console.log('✅ Saved to localStorage');
-      console.log('🔑 Token:', token.substring(0, 20) + '...');
-      console.log('🏢 Tenant:', tenant.name, '(' + tenant.slug + ')');
-      console.log('👤 User:', user.name, '(' + user.email + ')');
-      
-      toast.success('Login successful!');
-      
-      // ✅ ALWAYS USE PATH-BASED ROUTING
-      setTimeout(() => {
-        // ❌ OLD CODE - DELETE THIS:
-        // const isProduction = process.env.NODE_ENV === 'production';
-        // if (isProduction) {
-        //   window.location.href = `https://${tenant.slug}.i-expense.ikftech.com/dashboard`;
-        // } else {
-        //   window.location.href = `/tenant/${tenant.slug}/dashboard`;
-        // }
-
-        // ✅ NEW CODE - ALWAYS USE PATH-BASED:
-        window.location.href = `/tenant/${tenant.slug}/dashboard`;
-      }, 500);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('❌ Login error:', err);
-    console.error('❌ Error response:', err.response?.data);
-    
-    const message = err.response?.data?.message || err.message || 'Login failed';
-    setError(message);
-    toast.error(message);
-    
-    // Clear partial auth data
-    localStorage.removeItem('tenantToken');
-    localStorage.removeItem('tenant');
-    localStorage.removeItem('user');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
@@ -130,7 +133,8 @@ const TenantLogin = () => {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={loading}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
                 placeholder="you@company.com"
               />
             </div>
@@ -145,7 +149,8 @@ const TenantLogin = () => {
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={loading}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
                 placeholder="Enter your password"
               />
             </div>
@@ -154,6 +159,7 @@ const TenantLogin = () => {
               <label className="flex items-center">
                 <input
                   type="checkbox"
+                  disabled={loading}
                   className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                 />
                 <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
@@ -171,7 +177,7 @@ const TenantLogin = () => {
             {error && (
               <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <p className="text-red-800 dark:text-red-200 text-sm flex items-center">
-                  <AlertCircle className="w-4 h-4 mr-2" />
+                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
                   {error}
                 </p>
               </div>

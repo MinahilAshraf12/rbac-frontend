@@ -31,7 +31,10 @@ import toast from 'react-hot-toast';
 import { useTenant } from '../../../contexts/TenantContext';
 import api from '../../../config/api'; 
 
-const API_URL = process.env.REACT_APP_API_URL;
+// Line 32: Update API_URL
+const API_URL = process.env.REACT_APP_API_URL || 'https://rbac-dashboard-2.onrender.com';
+
+console.log('🌐 API_URL:', API_URL); // Add this for debugging
 
 // const API_URL = 'http://localhost:5000'; 
 
@@ -59,12 +62,20 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
     return null;
   }, [expenseId, paymentIndex]);
 
-  const getAuthHeaders = useCallback(() => {
-    const token = localStorage.getItem('token');
-    return {
-      'Authorization': token ? `Bearer ${token}` : '',
-    };
-  }, []);
+ // Line 62: Update getAuthHeaders function
+const getAuthHeaders = useCallback(() => {
+  // ✅ FIX: Get token correctly
+  const token = localStorage.getItem('tenantToken') || localStorage.getItem('token');
+  
+  console.log('🔐 Getting auth headers:', {
+    hasToken: !!token,
+    tokenPreview: token ? token.substring(0, 20) + '...' : 'NONE'
+  });
+  
+  return {
+    'Authorization': token ? `Bearer ${token}` : '',
+  };
+}, []);
 
   // Stable image loading function
   const loadAuthenticatedImage = useCallback(async () => {
@@ -805,7 +816,13 @@ useEffect(() => {
   console.log('🔍 Current statistics state:', statistics);
 }, [statistics]);
 
- 
+   useEffect(() => {
+    console.log('🔍 DEBUG INFO:');
+    console.log('   API_URL:', API_URL);
+    console.log('   tenantToken:', localStorage.getItem('tenantToken')?.substring(0, 20));
+    console.log('   token:', localStorage.getItem('token')?.substring(0, 20));
+    console.log('   currentSlug:', currentSlug);
+  }, [currentSlug]);
 
   // Handle window resize for responsive view mode
   useEffect(() => {
@@ -852,13 +869,31 @@ useEffect(() => {
   navigate(`/tenant/${currentSlug}/add-expense`);
 };
 
-  const handleEditExpense = (expense) => {
-    navigate(`/tenant/${currentSlug}/add-expense`, { state: { expense, mode: 'edit' } }); 
-      };
+ // Around line 638: Update handleEditExpense
+const handleEditExpense = (expense) => {
+  console.log('✏️ Editing expense:', expense._id);
+  console.log('📦 Expense data:', expense);
+  
+  navigate(`/tenant/${currentSlug}/add-expense`, { 
+    state: { 
+      expense: expense,  // ✅ Pass full expense object
+      mode: 'edit' 
+    } 
+  });
+};
 
-  const handleViewExpense = (expense) => {
-     navigate(`/tenant/${currentSlug}/add-expense`, { state: { expense, mode: 'view' } });
-  };
+// Around line 643: Update handleViewExpense
+const handleViewExpense = (expense) => {
+  console.log('👁️ Viewing expense:', expense._id);
+  console.log('📦 Expense data:', expense);
+  
+  navigate(`/tenant/${currentSlug}/add-expense`, { 
+    state: { 
+      expense: expense,  // ✅ Pass full expense object
+      mode: 'view' 
+    } 
+  });
+};
 
   const handleDeleteExpense = async (expenseId) => {
     if (!window.confirm('Are you sure you want to delete this expense?')) {

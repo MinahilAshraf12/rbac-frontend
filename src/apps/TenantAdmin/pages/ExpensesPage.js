@@ -26,8 +26,9 @@ import {
 import { useSubscription } from '../../../contexts/SubscriptionContext';
 import UsageLimitWarning from '../../../shared/components/UsageLimitWarning';
 import UpgradeModal from '../../../shared/components/UpgradeModal';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useTenant } from '../../../contexts/TenantContext';
 import api from '../../../config/api'; 
 
 const API_URL = process.env.REACT_APP_API_URL;
@@ -504,6 +505,11 @@ const ExpenseCard = ({ expense, onView, onEdit, onDelete, onFileView, formatCurr
 const ExpensesPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { tenant } = useTenant(); // ✅ ADD THIS
+  const { slug } = useParams(); // ✅ ADD THIS
+  
+  // ✅ ADD THIS - Get current slug
+  const currentSlug = slug || tenant?.slug;
    const { checkLimit } = useSubscription();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const expenseLimit = checkLimit('expense');
@@ -779,15 +785,15 @@ useEffect(() => {
     return;
   }
   
-  navigate('/tenant/add-expense');
+  navigate(`/tenant/${currentSlug}/add-expense`);
 };
 
   const handleEditExpense = (expense) => {
-    navigate('/tenant/add-expense', { state: { expense, mode: 'edit' } });
-  };
+    navigate(`/tenant/${currentSlug}/add-expense`, { state: { expense, mode: 'edit' } }); 
+      };
 
   const handleViewExpense = (expense) => {
-    navigate('/tenant/add-expense', { state: { expense, mode: 'view' } });
+     navigate(`/tenant/${currentSlug}/add-expense`, { state: { expense, mode: 'view' } });
   };
 
   const handleDeleteExpense = async (expenseId) => {

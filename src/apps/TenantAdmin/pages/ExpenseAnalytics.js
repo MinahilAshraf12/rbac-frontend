@@ -264,7 +264,7 @@ const fetchUsers = useCallback(async () => {
                 <span className="hidden sm:inline">Refresh</span>
               </button>
               <button 
-               onClick={() => navigate(`/tenant/${currentSlug}/dashboard`)}
+               onClick={() => navigate(`/tenant/${currentSlug}/expenses`)}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
               >
                 <span className="hidden sm:inline">View All</span>

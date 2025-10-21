@@ -1,5 +1,5 @@
 // src/contexts/SubscriptionContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useTenant } from './TenantContext';
 import { API_URL } from '../config/api';
 
@@ -19,20 +19,16 @@ export const SubscriptionProvider = ({ children }) => {
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ FIXED: Add dependency array to prevent infinite loop
-  useEffect(() => {
-    if (tenant?._id) {
-      loadSubscriptionData();
-    } else {
+  // ✅ Define loadSubscriptionData with useCallback to prevent infinite loop
+  const loadSubscriptionData = useCallback(async () => {
+    if (!tenant?._id) {
       setLoading(false);
+      return;
     }
-  }, [tenant?._id]); // Only run when tenant ID changes
 
-  const loadSubscriptionData = async () => {
     try {
       setLoading(true);
       
-      // ✅ Use fetch instead of axios
       const token = localStorage.getItem('tenantToken') || 
                     localStorage.getItem('tenant_token');
       
@@ -43,8 +39,7 @@ export const SubscriptionProvider = ({ children }) => {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-ID': tenant._id
         },
-        // ✅ Add timeout using AbortController
-        signal: AbortSignal.timeout(15000) // 15 seconds timeout
+        signal: AbortSignal.timeout(15000)
       });
       
       if (!response.ok) {
@@ -78,7 +73,6 @@ export const SubscriptionProvider = ({ children }) => {
     } catch (error) {
       console.error('Error loading subscription:', error);
       
-      // ✅ Fallback to tenant data - don't show error to user
       if (tenant) {
         setSubscription({
           plan: tenant.plan || 'free',
@@ -100,7 +94,11 @@ export const SubscriptionProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tenant]);
+
+  useEffect(() => {
+    loadSubscriptionData();
+  }, [loadSubscriptionData]);
 
   const checkLimit = (feature) => {
     if (!subscription?.limits || !usage) {

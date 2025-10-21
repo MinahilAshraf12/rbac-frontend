@@ -1,7 +1,7 @@
 // src/contexts/SubscriptionContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useTenant } from './TenantContext';
-import api from '../config/api';
+import { API_URL } from '../config/api';
 
 const SubscriptionContext = createContext();
 
@@ -19,21 +19,42 @@ export const SubscriptionProvider = ({ children }) => {
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // ✅ FIXED: Add dependency array to prevent infinite loop
   useEffect(() => {
-    if (tenant) {
+    if (tenant?._id) {
       loadSubscriptionData();
+    } else {
+      setLoading(false);
     }
-  });
+  }, [tenant?._id]); // Only run when tenant ID changes
 
   const loadSubscriptionData = async () => {
     try {
       setLoading(true);
       
-      // Fetch REAL usage from backend
-      const response = await api.get('/api/subscription/usage');
+      // ✅ Use fetch instead of axios
+      const token = localStorage.getItem('tenantToken') || 
+                    localStorage.getItem('tenant_token');
       
-      if (response.data.success) {
-        const data = response.data.data;
+      const response = await fetch(`${API_URL}/api/subscription/usage`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenant._id
+        },
+        // ✅ Add timeout using AbortController
+        signal: AbortSignal.timeout(15000) // 15 seconds timeout
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch subscription data');
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        const data = result.data;
         
         setSubscription({
           plan: tenant.plan || 'free',
@@ -52,27 +73,30 @@ export const SubscriptionProvider = ({ children }) => {
           storageUsed: data.storage.current,
         });
         
-        // console.log('✅ Real usage loaded:', data);
+        console.log('✅ Real usage loaded:', data);
       }
     } catch (error) {
       console.error('Error loading subscription:', error);
-      // Fallback to tenant data
-      setSubscription({
-        plan: tenant.plan || 'free',
-        status: tenant.status || 'active',
-        limits: {
-          maxUsers: tenant.settings?.maxUsers || 5,
-          maxExpenses: tenant.settings?.maxExpenses || 100,
-          storageLimit: tenant.settings?.storageLimit || 1024,
-        },
-        features: tenant.settings?.features || [],
-      });
       
-      setUsage({
-        currentUsers: tenant.usage?.currentUsers || 0,
-        currentExpenses: tenant.usage?.currentExpenses || 0,
-        storageUsed: tenant.usage?.storageUsed || 0,
-      });
+      // ✅ Fallback to tenant data - don't show error to user
+      if (tenant) {
+        setSubscription({
+          plan: tenant.plan || 'free',
+          status: tenant.status || 'active',
+          limits: {
+            maxUsers: tenant.settings?.maxUsers || 5,
+            maxExpenses: tenant.settings?.maxExpenses || 100,
+            storageLimit: tenant.settings?.storageLimit || 1024,
+          },
+          features: tenant.settings?.features || [],
+        });
+        
+        setUsage({
+          currentUsers: tenant.usage?.currentUsers || 0,
+          currentExpenses: tenant.usage?.currentExpenses || 0,
+          storageUsed: tenant.usage?.storageUsed || 0,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -118,17 +142,33 @@ export const SubscriptionProvider = ({ children }) => {
 
   const upgradePlan = async (planId) => {
     try {
-      const response = await api.post('/api/subscription/upgrade', { planId });
+      const token = localStorage.getItem('tenantToken') || 
+                    localStorage.getItem('tenant_token');
       
-      if (response.data.success) {
-        await loadSubscriptionData(); // Reload data
-        return { success: true, message: response.data.message };
+      const response = await fetch(`${API_URL}/api/subscription/upgrade`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Tenant-ID': tenant._id
+        },
+        body: JSON.stringify({ planId }),
+        signal: AbortSignal.timeout(15000)
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        await loadSubscriptionData();
+        return { success: true, message: data.message };
       }
+      
+      return { success: false, message: data.message || 'Failed to upgrade plan' };
     } catch (error) {
       console.error('Error upgrading plan:', error);
       return { 
         success: false, 
-        message: error.response?.data?.message || 'Failed to upgrade plan' 
+        message: error.message || 'Failed to upgrade plan' 
       };
     }
   };
@@ -153,4 +193,3 @@ export const SubscriptionProvider = ({ children }) => {
     </SubscriptionContext.Provider>
   );
 };
-

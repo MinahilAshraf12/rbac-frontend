@@ -203,7 +203,7 @@ const fetchUsers = useCallback(async () => {
           <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">No expense data available</p>
           <p className="text-gray-500 dark:text-gray-500 text-sm mb-6">Start by adding some expenses to see analytics</p>
           <button
-            onClick={() => navigate('/tenant/${currentSlug}/add-expense')}
+            onClick={() => navigate(`/tenant/${currentSlug}/add-expense`)}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
             Add Your First Expense
@@ -240,7 +240,7 @@ const fetchUsers = useCallback(async () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate('/tenant/${currentSlug}/dashboard')}
+                onClick={() => navigate(`/tenant/${currentSlug}/dashboard`)}
                 className="p-2 hover:bg-white/20 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
@@ -264,7 +264,7 @@ const fetchUsers = useCallback(async () => {
                 <span className="hidden sm:inline">Refresh</span>
               </button>
               <button 
-                onClick={() => navigate('/tenant/${currentSlug}/expenses')}
+               onClick={() => navigate(`/tenant/${currentSlug}/dashboard`)}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
               >
                 <span className="hidden sm:inline">View All</span>
@@ -724,14 +724,14 @@ const fetchUsers = useCallback(async () => {
             </div>
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => navigate('/tenant/${currentSlug}/add-expense')}
+                onClick={() => navigate(`/tenant/${currentSlug}/add-expense`)}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
               >
                 <Download className="w-4 h-4" />
                 Add Expense
               </button>
               <button 
-                onClick={() => navigate('/tenant/${currentSlug}/expenses')}
+                onClick={() => navigate(`/tenant/${currentSlug}/expenses`)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
               >
                 View All Expenses

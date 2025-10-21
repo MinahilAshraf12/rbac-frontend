@@ -1,7 +1,7 @@
-// Updated DashboardHome.js with real activity integration - COMPLETE VERSION
+// DashboardHome.js with Dynamic Navigation
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Users,
   Shield,
@@ -25,12 +25,19 @@ import {
   Edit,
   Trash2,
 } from 'lucide-react';
-import api from '../../../config/api';  // ⬅️ USE THIS INSTEAD OF AXIOS
+import api from '../../../config/api';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useTenant } from '../../../contexts/TenantContext'; // ✅ Import useTenant
 
 const DashboardHome = () => {
   const { user } = useAuth();
+  const { tenant } = useTenant(); // ✅ Get tenant from context
   const navigate = useNavigate();
+  const { slug } = useParams(); // ✅ Get slug from URL
+  
+  // ✅ Use slug from params or tenant context
+  const currentSlug = slug || tenant?.slug;
+
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -51,7 +58,6 @@ const DashboardHome = () => {
   useEffect(() => {
     fetchAllData();
     
-    // Set up polling for real-time updates every 60 seconds
     const interval = setInterval(() => {
       fetchRecentActivity();
     }, 60000);
@@ -59,181 +65,52 @@ const DashboardHome = () => {
     return () => clearInterval(interval);
   }, []);
 
- const fetchAllData = async () => {
-  try {
-    // console.log('📊 Fetching dashboard data...');
-    
-    // ✅ All API calls will automatically use tenantToken via api.js
-    const [usersRes, rolesRes, categoriesRes, expenseStatsRes, activityRes] = await Promise.all([
-      api.get('/api/users?limit=1'),
-      api.get('/api/roles'),
-      api.get('/api/categories?limit=1'),
-      api.get('/api/expenses/dashboard-stats'),
-      api.get('/api/activities/recent?limit=8')
-    ]);
+  const fetchAllData = async () => {
+    try {
+      const [usersRes, rolesRes, categoriesRes, expenseStatsRes, activityRes] = await Promise.all([
+        api.get('/api/users?limit=1'),
+        api.get('/api/roles'),
+        api.get('/api/categories?limit=1'),
+        api.get('/api/expenses/dashboard-stats'),
+        api.get('/api/activities/recent?limit=8')
+      ]);
 
-  
+      setStats({
+        totalUsers: usersRes.data?.total || usersRes.data?.count || 0,
+        activeUsers: usersRes.data?.total || usersRes.data?.count || 0,
+        totalRoles: rolesRes.data?.count || rolesRes.data?.total || 0,
+        totalCategories: categoriesRes.data?.total || categoriesRes.data?.count || 0,
+        activeCategories: Math.floor((categoriesRes.data?.total || categoriesRes.data?.count || 0) * 0.8),
+      });
 
-    // ✅ Handle different response formats
-    setStats({
-      totalUsers: usersRes.data?.total || usersRes.data?.count || 0,
-      activeUsers: usersRes.data?.total || usersRes.data?.count || 0,
-      totalRoles: rolesRes.data?.count || rolesRes.data?.total || 0,
-      totalCategories: categoriesRes.data?.total || categoriesRes.data?.count || 0,
-      activeCategories: Math.floor((categoriesRes.data?.total || categoriesRes.data?.count || 0) * 0.8),
-    });
+      const expenseData = expenseStatsRes.data?.data || expenseStatsRes.data || {};
+      setExpenseStats({
+        weekly: expenseData.weekly || { total: 0, count: 0 },
+        monthly: expenseData.monthly || { total: 0, count: 0 },
+        yearly: expenseData.yearly || { total: 0, count: 0 },
+        pending: expenseData.pending || 0,
+        topCategory: expenseData.topCategory || null
+      });
 
-    // ✅ Handle expense stats with proper extraction
-    const expenseData = expenseStatsRes.data?.data || expenseStatsRes.data || {};
-    setExpenseStats({
-      weekly: expenseData.weekly || { total: 0, count: 0 },
-      monthly: expenseData.monthly || { total: 0, count: 0 },
-      yearly: expenseData.yearly || { total: 0, count: 0 },
-      pending: expenseData.pending || 0,
-      topCategory: expenseData.topCategory || null
-    });
+      const activities = activityRes.data?.data || activityRes.data || [];
+      setRecentActivity(Array.isArray(activities) ? activities : []);
+    } catch (error) {
+      console.error('❌ Error fetching dashboard data:', error);
+      setRecentActivity([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // ✅ Handle activity data
-    const activities = activityRes.data?.data || activityRes.data || [];
-    setRecentActivity(Array.isArray(activities) ? activities : []);
-    
-    // console.log('✅ Dashboard data loaded successfully');
-  } catch (error) {
-    console.error('❌ Error fetching dashboard data:', error);
-    setRecentActivity([]);
-  } finally {
-    setLoading(false);
-  }
-};
-
- const fetchRecentActivity = async () => {
-  try {
-    // console.log('🔄 Refreshing activity...');
-    const activityRes = await api.get('/api/activities/recent?limit=8');
-    
-    // ✅ Handle different response formats
-    const activities = activityRes.data?.data || activityRes.data || [];
-    setRecentActivity(Array.isArray(activities) ? activities : []);
-    
-    // console.log('✅ Activity refreshed:', activities.length, 'items');
-  } catch (error) {
-    console.error('❌ Error fetching recent activity:', error);
-  }
-};
-
-// Updated DashboardHome.js with real activity integration - COMPLETE VERSION
-// import React, { useState, useEffect } from 'react';
-// import { motion } from 'framer-motion';
-// import { useNavigate } from 'react-router-dom';
-// import {
-//   Users,
-//   Shield,
-//   FolderTree,
-//   TrendingUp,
-//   Activity,
-//   Clock,
-//   UserCheck,
-//   Calendar,
-//   BarChart3,
-//   PieChart,
-//   Plus,
-//   ArrowUpRight,
-//   ArrowDownRight,
-//   UserPlus,
-//   UserX,
-//   ShieldPlus,
-//   ShieldX,
-//   FolderPlus,
-//   FolderX,
-//   Edit,
-//   Trash2,
-// } from 'lucide-react';
-// import axios from 'axios';
-// import { useAuth } from '../../../contexts/AuthContext';
-
-// const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api'
-
-// // const API_URL = 'http://localhost:5000'; 
-// // const API_URL = '/api';
-// const DashboardHome = () => {
-//   const { user } = useAuth();
-//   const navigate = useNavigate();
-//   const [stats, setStats] = useState({
-//     totalUsers: 0,
-//     activeUsers: 0,
-//     totalRoles: 0,
-//     totalCategories: 0,
-//     activeCategories: 0,
-//   });
-//   const [expenseStats, setExpenseStats] = useState({
-//     weekly: { total: 0, count: 0 },
-//     monthly: { total: 0, count: 0 },
-//     yearly: { total: 0, count: 0 },
-//     pending: 0,
-//     topCategory: null
-//   });
-//   const [recentActivity, setRecentActivity] = useState([]);
-//   const [loading, setLoading] = useState(true);
-
-//   useEffect(() => {
-//     fetchAllData();
-    
-//     // Set up polling for real-time updates every 60 seconds
-//     const interval = setInterval(() => {
-//       fetchRecentActivity();
-//     }, 60000);
-    
-//     return () => clearInterval(interval);
-//   }, []);
-
-//   const fetchAllData = async () => {
-//     try {
-//       const token = localStorage.getItem('token');
-//       const headers = {
-//         'Authorization': `Bearer ${token}`,
-//         'Content-Type': 'application/json'
-//       };
-
-//       const [usersRes, rolesRes, categoriesRes, expenseStatsRes, activityRes] = await Promise.all([
-//         axios.get(`${API_URL}/api/users?limit=1`, { headers }),
-//         axios.get(`${API_URL}/api/roles`, { headers }),
-//         axios.get(`${API_URL}/api/categories?limit=1`, { headers }),
-//         axios.get(`${API_URL}/api/expenses/dashboard-stats`, { headers }),
-//         axios.get(`${API_URL}/api/activities/recent?limit=8`, { headers }) // Use real activity endpoint
-//       ]);
-
-//       setStats({
-//         totalUsers: usersRes.data.total || 0,
-//         activeUsers: usersRes.data.total || 0,
-//         totalRoles: rolesRes.data.count || 0,
-//         totalCategories: categoriesRes.data.total || 0,
-//         activeCategories: Math.floor((categoriesRes.data.total || 0) * 0.8),
-//       });
-
-//       setExpenseStats(expenseStatsRes.data.data);
-//       setRecentActivity(activityRes.data.data || []);
-//     } catch (error) {
-//       console.error('Error fetching dashboard data:', error);
-//       setRecentActivity([]);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const fetchRecentActivity = async () => {
-//     try {
-//       const token = localStorage.getItem('token');
-//       const headers = {
-//         'Authorization': `Bearer ${token}`,
-//         'Content-Type': 'application/json'
-//       };
-
-//       const activityRes = await axios.get(`${API_URL}/api/activities/recent?limit=8`, { headers });
-//       setRecentActivity(activityRes.data.data || []);
-//     } catch (error) {
-//       console.error('Error fetching recent activity:', error);
-//     }
-//   };
+  const fetchRecentActivity = async () => {
+    try {
+      const activityRes = await api.get('/api/activities/recent?limit=8');
+      const activities = activityRes.data?.data || activityRes.data || [];
+      setRecentActivity(Array.isArray(activities) ? activities : []);
+    } catch (error) {
+      console.error('❌ Error fetching recent activity:', error);
+    }
+  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -334,34 +211,35 @@ const DashboardHome = () => {
     },
   ];
 
+  // ✅ Quick Actions with Dynamic Routes
   const quickActions = [
     {
       title: 'Add New Expense',
       description: 'Create and track new expenses',
       icon: Plus,
       color: 'bg-green-500',
-      action: () => navigate('/tenant/add-expense'),
+      action: () => navigate(`/tenant/${currentSlug}/add-expense`),
     },
     {
       title: 'View Analytics',
       description: 'Detailed expense analytics and graphs',
       icon: BarChart3,
       color: 'bg-blue-500',
-      action: () => navigate('/tenant/expense-analytics'),
+      action: () => navigate(`/tenant/${currentSlug}/expense-analytics`),
     },
     {
       title: 'Manage Users',
       description: 'Add and manage system users',
       icon: Users,
       color: 'bg-purple-500',
-      action: () => navigate('/tenant/users'),
+      action: () => navigate(`/tenant/${currentSlug}/users`),
     },
     {
       title: 'Categories',
       description: 'Organize expense categories',
       icon: FolderTree,
       color: 'bg-orange-500',
-      action: () => navigate('/tenant/categories'),
+      action: () => navigate(`/tenant/${currentSlug}/categories`),
     },
   ];
 
@@ -404,7 +282,7 @@ const DashboardHome = () => {
             Expense Analytics
           </h2>
           <button
-            onClick={() => navigate('/tenant/expense-analytics')}
+            onClick={() => navigate(`/tenant/${currentSlug}/expense-analytics`)}
             className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 transform hover:scale-105 text-sm sm:text-base"
           >
             <BarChart3 size={16} />

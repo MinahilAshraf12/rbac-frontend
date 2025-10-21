@@ -1,7 +1,7 @@
 // src/contexts/SubscriptionContext.jsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useTenant } from './TenantContext';
-import { API_URL } from '../config/api';
+import api from '../config/api'; // ✅ Use the new api instance
 
 const SubscriptionContext = createContext();
 
@@ -29,27 +29,11 @@ export const SubscriptionProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      const token = localStorage.getItem('tenantToken') || 
-                    localStorage.getItem('tenant_token');
+      // ✅ Use the new api instance - handles timeout, auth, everything
+      const response = await api.get('/api/subscription/usage');
       
-      const response = await fetch(`${API_URL}/api/subscription/usage`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-ID': tenant._id
-        },
-        signal: AbortSignal.timeout(15000)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch subscription data');
-      }
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        const data = result.data;
+      if (response.data.success) {
+        const data = response.data.data;
         
         setSubscription({
           plan: tenant.plan || 'free',
@@ -71,7 +55,8 @@ export const SubscriptionProvider = ({ children }) => {
         console.log('✅ Real usage loaded:', data);
       }
     } catch (error) {
-      console.error('Error loading subscription:', error);
+      // ✅ Silent fallback - don't spam console with errors
+      console.log('⚠️ Using fallback subscription data (API unavailable)');
       
       if (tenant) {
         setSubscription({
@@ -140,28 +125,18 @@ export const SubscriptionProvider = ({ children }) => {
 
   const upgradePlan = async (planId) => {
     try {
-      const token = localStorage.getItem('tenantToken') || 
-                    localStorage.getItem('tenant_token');
+      // ✅ Use the new api instance
+      const response = await api.post('/api/subscription/upgrade', { planId });
       
-      const response = await fetch(`${API_URL}/api/subscription/upgrade`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-ID': tenant._id
-        },
-        body: JSON.stringify({ planId }),
-        signal: AbortSignal.timeout(15000)
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
+      if (response.data.success) {
         await loadSubscriptionData();
-        return { success: true, message: data.message };
+        return { success: true, message: response.data.message };
       }
       
-      return { success: false, message: data.message || 'Failed to upgrade plan' };
+      return { 
+        success: false, 
+        message: response.data.message || 'Failed to upgrade plan' 
+      };
     } catch (error) {
       console.error('Error upgrading plan:', error);
       return { 

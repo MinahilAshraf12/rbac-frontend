@@ -38,6 +38,8 @@ const API_URL = process.env.REACT_APP_API_URL;
 // Mobile-optimized File Viewer Modal
 // Fixed FileViewerModal Component - Replace the existing one in ExpensesPage.js
 
+// Fixed FileViewerModal Component - Replace in ExpensesPage.js
+
 const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -49,7 +51,7 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
   
   // Stable file URL generation
   const fileUrl = useMemo(() => {
-    if (expenseId && paymentIndex !== null) {
+    if (expenseId && paymentIndex !== null && paymentIndex !== undefined) {
       return `${API_URL}/api/expenses/${expenseId}/files/${paymentIndex}`;
     }
     return null;
@@ -64,11 +66,12 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
 
   // Stable image loading function
   const loadAuthenticatedImage = useCallback(async () => {
-    if (!fileUrl || !isImage || imageUrl) return; // Don't reload if already loaded
+    if (!fileUrl || !isImage) return;
     
     try {
+      setLoading(true);
       setError(null);
-      console.log('Loading image from:', fileUrl);
+      console.log('🔵 Loading image from:', fileUrl);
 
       const response = await fetch(fileUrl, {
         method: 'GET',
@@ -79,24 +82,48 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
         throw new Error(`Failed to load image: ${response.status} ${response.statusText}`);
       }
 
+      // Check if response is actually an image
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.startsWith('image/')) {
+        throw new Error(`Invalid content type: ${contentType}`);
+      }
+
       const blob = await response.blob();
+      
+      // Validate blob
+      if (blob.size === 0) {
+        throw new Error('Empty image data received');
+      }
+
       const url = URL.createObjectURL(blob);
       setImageUrl(url);
-      console.log('Image loaded successfully');
+      console.log('✅ Image loaded successfully, blob size:', blob.size);
     } catch (error) {
-      console.error('Image load error:', error);
-      setError('Failed to load image preview');
+      console.error('❌ Image load error:', error);
+      setError(error.message || 'Failed to load image preview');
+    } finally {
+      setLoading(false);
     }
-  }, [fileUrl, isImage, getAuthHeaders, imageUrl]);
+  }, [fileUrl, isImage, getAuthHeaders]);
 
-  // Load image when modal opens and conditions are met
+  // Load image when modal opens
   useEffect(() => {
-    if (isOpen && isImage && fileUrl && !imageUrl && !error) {
+    if (isOpen && isImage && fileUrl && !imageUrl && !loading) {
       loadAuthenticatedImage();
     }
-  }, [isOpen, isImage, fileUrl, imageUrl, error, loadAuthenticatedImage]);
+  }, [isOpen, isImage, fileUrl, imageUrl, loading, loadAuthenticatedImage]);
 
-  // Cleanup image URL when modal closes
+  // Cleanup when modal closes or unmounts
+  useEffect(() => {
+    return () => {
+      if (imageUrl) {
+        console.log('🧹 Cleaning up image URL');
+        URL.revokeObjectURL(imageUrl);
+      }
+    };
+  }, [imageUrl]);
+
+  // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       if (imageUrl) {
@@ -108,15 +135,6 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
       setLoading(false);
     }
   }, [isOpen, imageUrl]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
-      }
-    };
-  }, [imageUrl]);
 
   if (!isOpen || !file) return null;
 
@@ -144,7 +162,9 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      
+      // Cleanup after a short delay
+      setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 100);
       
     } catch (error) {
       console.error('Download error:', error);
@@ -184,14 +204,19 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
       return (
         <div className="text-center text-gray-500 dark:text-gray-400 p-4 sm:p-8">
           <FileText size={32} className="mx-auto mb-4 opacity-50 sm:w-12 sm:h-12" />
-          <p className="text-red-600 dark:text-red-400 mb-2 text-sm">Unable to display image preview</p>
-          <p className="text-xs sm:text-sm">{error}</p>
-          <p className="text-xs sm:text-sm mt-2">Click "Download" to access the file</p>
+          <p className="text-red-600 dark:text-red-400 mb-2 text-sm font-semibold">Unable to display image preview</p>
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{error}</p>
+          <button
+            onClick={handleDownload}
+            className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+          >
+            Try Downloading Instead
+          </button>
         </div>
       );
     }
 
-    if (!imageUrl) {
+    if (!imageUrl || loading) {
       return (
         <div className="text-center p-4 sm:p-8">
           <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
@@ -201,7 +226,12 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
     }
 
     return (
-      <div className="text-center p-2">
+      <div className="text-center p-2 relative">
+        {!imageLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
+          </div>
+        )}
         <img
           src={imageUrl}
           alt={file.originalName || file.filename}
@@ -209,17 +239,16 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
             imageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
           style={{ maxHeight: window.innerWidth < 640 ? '250px' : '400px', objectFit: 'contain' }}
-          onLoad={() => setImageLoaded(true)}
-          onError={() => {
-            setError('Failed to display image');
+          onLoad={() => {
+            console.log('✅ Image rendered successfully');
+            setImageLoaded(true);
+          }}
+          onError={(e) => {
+            console.error('❌ Image render error:', e);
+            setError('Failed to render image. The file may be corrupted.');
             setImageLoaded(false);
           }}
         />
-        {!imageLoaded && imageUrl && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
-          </div>
-        )}
       </div>
     );
   };
@@ -297,16 +326,6 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
             </button>
           </div>
         </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
-            <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
-              <FileText size={14} />
-              <span className="text-xs sm:text-sm font-medium">{error}</span>
-            </div>
-          </div>
-        )}
 
         {/* Content */}
         <div className="p-3 sm:p-6 overflow-auto max-h-[70vh] sm:max-h-[60vh] relative">

@@ -40,6 +40,8 @@ const API_URL = process.env.REACT_APP_API_URL;
 
 // Fixed FileViewerModal Component - Replace in ExpensesPage.js
 
+// Fixed FileViewerModal Component - Replace in ExpensesPage.js
+
 const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -71,20 +73,61 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
     try {
       setLoading(true);
       setError(null);
-      console.log('🔵 Loading image from:', fileUrl);
+      console.log('===========================================');
+      console.log('🔵 FRONTEND: Loading image from:', fileUrl);
+      console.log('🔑 Auth token present:', !!localStorage.getItem('token'));
 
       const response = await fetch(fileUrl, {
         method: 'GET',
         headers: getAuthHeaders()
       });
 
+      console.log('📊 Response status:', response.status);
+      console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        throw new Error(`Failed to load image: ${response.status} ${response.statusText}`);
+        // Try to get error message from response
+        const contentType = response.headers.get('content-type');
+        const errorBody = await response.text();
+        console.error('❌ Response not OK');
+        console.error('   Status:', response.status);
+        console.error('   Content-Type:', contentType);
+        console.error('   Body preview:', errorBody.substring(0, 500));
+        
+        // Try to parse as JSON
+        try {
+          const errorJson = JSON.parse(errorBody);
+          console.error('   Parsed error:', errorJson);
+          throw new Error(errorJson.message || `HTTP ${response.status}`);
+        } catch {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
       }
 
       // Check if response is actually an image
       const contentType = response.headers.get('content-type');
+      console.log('📄 Content-Type:', contentType);
+      
       if (!contentType || !contentType.startsWith('image/')) {
+        // If we got HTML, the route might not exist or auth failed
+        const responseText = await response.text();
+        console.error('❌ Expected image but got:', contentType);
+        console.error('❌ Response preview:', responseText.substring(0, 500));
+        console.error('❌ Full URL:', fileUrl);
+        console.error('===========================================');
+        
+        if (contentType?.includes('application/json')) {
+          try {
+            const jsonData = JSON.parse(responseText);
+            throw new Error(jsonData.message || 'Invalid response type');
+          } catch {
+            // not JSON
+          }
+        }
+        
+        if (contentType?.includes('text/html')) {
+          throw new Error('Route not found or authentication failed. Check backend logs.');
+        }
         throw new Error(`Invalid content type: ${contentType}`);
       }
 
@@ -98,8 +141,10 @@ const FileViewerModal = ({ isOpen, onClose, file, expenseId, paymentIndex }) => 
       const url = URL.createObjectURL(blob);
       setImageUrl(url);
       console.log('✅ Image loaded successfully, blob size:', blob.size);
+      console.log('===========================================');
     } catch (error) {
       console.error('❌ Image load error:', error);
+      console.error('===========================================');
       setError(error.message || 'Failed to load image preview');
     } finally {
       setLoading(false);

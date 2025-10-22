@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import TenantModal from '../components/TenantModal';
 import TenantDetailsModal from '../components/TenantDetailsModal';
 
-const API_URL =  'http://localhost:5000';
+const API_URL = 'https://rbac-dashboard-2.onrender.com' || 'http://localhost:5000';
 
 const TenantsPage = () => {
   const [tenants, setTenants] = useState([]);

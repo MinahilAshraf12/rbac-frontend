@@ -3,7 +3,7 @@ import { Crown,  Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 // import toast from 'react-hot-toast';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_URL = 'https://rbac-dashboard-2.onrender.com' || 'http://localhost:5000';
 
 const SubscriptionsPage = () => {
   const [plans, setPlans] = useState([]);

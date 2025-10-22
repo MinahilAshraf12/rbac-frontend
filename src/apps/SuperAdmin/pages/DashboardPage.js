@@ -7,7 +7,7 @@ import {
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 
-const API_URL =  'http://localhost:5000';
+const API_URL =  'https://rbac-dashboard-2.onrender.com';
 
 const DashboardPage = () => {
   const [stats, setStats] = useState(null);

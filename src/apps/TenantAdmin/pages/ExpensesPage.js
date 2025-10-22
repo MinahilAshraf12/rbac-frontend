@@ -869,27 +869,29 @@ useEffect(() => {
   navigate(`/tenant/${currentSlug}/add-expense`);
 };
 
- // Around line 638: Update handleEditExpense
+ // Edit handler - Navigate with state
 const handleEditExpense = (expense) => {
   console.log('✏️ Editing expense:', expense._id);
   console.log('📦 Expense data:', expense);
   
+  // ✅ Navigate to add-expense with state
   navigate(`/tenant/${currentSlug}/add-expense`, { 
     state: { 
-      expense: expense,  // ✅ Pass full expense object
+      expense: expense,
       mode: 'edit' 
     } 
   });
 };
 
-// Around line 643: Update handleViewExpense
+// View handler - Navigate with state
 const handleViewExpense = (expense) => {
   console.log('👁️ Viewing expense:', expense._id);
   console.log('📦 Expense data:', expense);
   
+  // ✅ Navigate to add-expense with state
   navigate(`/tenant/${currentSlug}/add-expense`, { 
     state: { 
-      expense: expense,  // ✅ Pass full expense object
+      expense: expense,
       mode: 'view' 
     } 
   });

@@ -17,19 +17,24 @@ import {
   Trash2,
   X
 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../../config/api'; 
-
-const API_URL = 'https://rbac-dashboard-2.onrender.com';
+import toast from 'react-hot-toast';
+const API_URL =  'https://rbac-dashboard-2.onrender.com';
 
 const AddExpensePage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { slug } = useParams(); // ✅ GET SLUG FROM PARAMS
+  
+  // ✅ Get mode and expense from location state
+  const { mode: urlMode, expense: locationExpense } = location.state || {};
   
   const [categories, setCategories] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [mode, ] = useState('add');
+  const [mode, ] = useState(urlMode || 'add'); // ✅ SET MODE FROM LOCATION STATE
+  const [expenseId, ] = useState(locationExpense?._id || null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -108,11 +113,65 @@ const AddExpensePage = () => {
     }
   }, []);
 
+  // ✅ Load expense data for edit/view mode
+  const loadExpenseData = useCallback(async () => {
+    if (!expenseId || mode === 'add') return;
+
+    try {
+      setLoading(true);
+      console.log('📥 Loading expense data for:', expenseId);
+      
+      // ✅ If we have expense in location state, use it directly
+      let expense;
+      if (locationExpense && locationExpense._id === expenseId) {
+        console.log('✅ Using expense from location state');
+        expense = locationExpense;
+      } else {
+        console.log('📡 Fetching expense from API');
+        const response = await api.get(`/api/expenses/${expenseId}`);
+        expense = response.data;
+      }
+      
+      console.log('✅ Expense data loaded:', expense);
+
+      // Transform expense data to form format
+      setFormData({
+        title: expense.title || '',
+        description: expense.description || '',
+        date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        payments: expense.payments?.map(payment => ({
+          user: payment.user || '',
+          category: payment.category || '',
+          subCategory: payment.subCategory || '',
+          amount: payment.amount?.toString() || '',
+          file: null, // New file will be null initially
+          existingFile: payment.file ? {
+            hasFile: true,
+            filename: payment.file.filename,
+            originalName: payment.file.originalName,
+            mimetype: payment.file.mimetype
+          } : null,
+          fileAction: payment.file ? 'keep' : null
+        })) || [{ user: '', category: '', subCategory: '', amount: '', file: null }]
+      });
+
+    } catch (error) {
+      console.error('❌ Error loading expense:', error);
+      toast.error('Failed to load expense data');
+      navigate(`/tenant/${slug}/expenses`);
+    } finally {
+      setLoading(false);
+    }
+  }, [expenseId, mode, navigate, slug, locationExpense]);
+
   useEffect(() => {
     console.log('🔗 AddExpensePage tenant slug:', slug);
+    console.log('🔗 Mode:', mode, 'Expense ID:', expenseId);
+    console.log('🔗 Location state:', location.state);
     loadCategories();
     loadExpenseUsers();
-  }, [slug, loadCategories, loadExpenseUsers]);
+    loadExpenseData(); // ✅ Load expense data for edit/view
+  }, [slug, loadCategories, loadExpenseUsers, loadExpenseData, mode, expenseId]);
 
   const handleBack = () => {
     // ✅ USE SLUG IN NAVIGATION
@@ -209,7 +268,7 @@ const AddExpensePage = () => {
           body: formDataToSend
         });
       } else if (mode === 'edit') {
-        response = await fetch(`${API_URL}/api/expenses/${formData._id}`, {
+        response = await fetch(`${API_URL}/api/expenses/${expenseId}`, {
           method: 'PUT',
           headers: headers,
           body: formDataToSend

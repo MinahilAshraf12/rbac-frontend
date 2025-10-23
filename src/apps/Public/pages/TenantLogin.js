@@ -1,19 +1,14 @@
-// src/apps/Public/pages/TenantLogin.js - FIXED VERSION WITH SUBDOMAIN SUPPORT
-import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Building2, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+// src/pages/auth/TenantLogin.jsx
+import React, { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Building2, Mail, Lock, AlertCircle } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import toast from 'react-hot-toast';
 
 const TenantLogin = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const slugFromUrl = searchParams.get('slug');
   const isNewAccount = searchParams.get('new') === 'true';
-  
-  const [tenantSlug, setTenantSlug] = useState('');
-  const [tenantInfo, setTenantInfo] = useState(null);
-  const [loadingTenant, setLoadingTenant] = useState(true);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -22,67 +17,15 @@ const TenantLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // ✅ DETECT SUBDOMAIN OR SLUG FROM URL
-  useEffect(() => {
-    const detectTenant = async () => {
-      try {
-        const hostname = window.location.hostname;
-        let slug = null;
-
-        // Method 1: Subdomain detection (tenant1.i-expense.ikftech.com)
-        if (hostname.endsWith('.i-expense.ikftech.com')) {
-          slug = hostname.replace('.i-expense.ikftech.com', '');
-          console.log('✅ Detected slug from subdomain:', slug);
-        }
-        
-        // Method 2: URL parameter (?slug=tenant1)
-        else if (slugFromUrl) {
-          slug = slugFromUrl;
-          console.log('✅ Detected slug from URL param:', slug);
-        }
-
-        // Method 3: Path-based (/login?tenant=xyz)
-        else if (searchParams.get('tenant')) {
-          slug = searchParams.get('tenant');
-          console.log('✅ Detected slug from tenant param:', slug);
-        }
-
-        if (slug) {
-          setTenantSlug(slug);
-          
-          // Fetch tenant info
-          const response = await fetch(`${API_URL}/api/public/tenant/${slug}`);
-          const data = await response.json();
-          
-          if (data.success) {
-            setTenantInfo(data.data);
-            console.log('✅ Tenant loaded:', data.data.name);
-          } else {
-            setError(`Organization "${slug}" not found`);
-          }
-        }
-      } catch (err) {
-        console.error('Error detecting tenant:', err);
-      } finally {
-        setLoadingTenant(false);
-      }
-    };
-
-    detectTenant();
-  }, [slugFromUrl, searchParams]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      console.log('🔐 Attempting login with:', { 
-        email: formData.email,
-        detectedSlug: tenantSlug 
-      });
+      console.log('🔐 Attempting login with:', { email: formData.email });
       
-      // ✅ Use native fetch
+      // ✅ Using native fetch instead of axios (works better)
       const response = await fetch(`${API_URL}/api/public/login`, {
         method: 'POST',
         headers: {
@@ -94,7 +37,7 @@ const TenantLogin = () => {
 
       const data = await response.json();
       
-      console.log('📥 Login response:', data);
+      console.log('🔥 Login response:', data);
       
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
@@ -128,20 +71,9 @@ const TenantLogin = () => {
         
         toast.success('Login successful!');
         
-        // ✅ FIXED: Redirect based on subdomain or path
-        const hostname = window.location.hostname;
-        
-        if (hostname.endsWith('.i-expense.ikftech.com') && hostname !== 'i-expense.ikftech.com') {
-          // Already on subdomain, just go to dashboard
-          setTimeout(() => {
-            window.location.href = `/dashboard`;
-          }, 500);
-        } else {
-          // On main domain, redirect to tenant path
-          setTimeout(() => {
-            window.location.href = `/tenant/${tenant.slug}/dashboard`;
-          }, 500);
-        }
+        setTimeout(() => {
+          window.location.href = `/tenant/${tenant.slug}/dashboard`;
+        }, 500);
       }
     } catch (err) {
       console.error('❌ Login error:', err);
@@ -159,18 +91,6 @@ const TenantLogin = () => {
     }
   };
 
-  // Show loading while detecting tenant
-  if (loadingTenant && (slugFromUrl || window.location.hostname.includes('.i-expense.ikftech.com'))) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading organization...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
@@ -180,26 +100,22 @@ const TenantLogin = () => {
             <Building2 className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            {tenantInfo ? `Welcome to ${tenantInfo.name}` : 'Welcome Back'}
+            Welcome Back
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            {tenantInfo ? 'Sign in to your workspace' : 'Sign in to your account'}
+            Sign in to your account
           </p>
-          {tenantSlug && (
-            <div className="mt-3 inline-flex items-center space-x-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
-              <CheckCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="text-sm text-indigo-700 dark:text-indigo-300 font-medium">
-                {tenantSlug}.i-expense.ikftech.com
-              </span>
-            </div>
+          {slugFromUrl && (
+            <p className="text-sm text-indigo-600 dark:text-indigo-400 mt-1">
+              {slugFromUrl}.i-expense.ikftech.com
+            </p>
           )}
         </div>
 
         {isNewAccount && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <p className="text-green-800 dark:text-green-200 text-sm flex items-center">
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Account created successfully! Please sign in with your credentials.
+            <p className="text-green-800 dark:text-green-200 text-sm">
+              ✓ Account created successfully! Please sign in with your credentials.
             </p>
           </div>
         )}
@@ -251,7 +167,7 @@ const TenantLogin = () => {
                 </span>
               </label>
               <Link
-                to="/forgot-password"
+                to="/tenant/forgot-password"
                 className="text-sm text-indigo-600 hover:underline"
               >
                 Forgot password?
@@ -291,16 +207,6 @@ const TenantLogin = () => {
             Sign up
           </Link>
         </p>
-
-        {/* Debug Info (only in development) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs text-gray-600 dark:text-gray-400">
-            <p><strong>Debug Info:</strong></p>
-            <p>Hostname: {window.location.hostname}</p>
-            <p>Detected Slug: {tenantSlug || 'None'}</p>
-            <p>Tenant Info: {tenantInfo ? tenantInfo.name : 'Not loaded'}</p>
-          </div>
-        )}
       </div>
     </div>
   );

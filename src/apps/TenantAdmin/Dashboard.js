@@ -1,4 +1,4 @@
-// src/apps/TenantAdmin/Dashboard.js - FIXED FOR SUBDOMAIN ROUTING
+// src/apps/TenantAdmin/Dashboard.js
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +15,7 @@ import LoadingScreen from '../../shared/components/LoadingScreen';
 import ExpenseAnalytics from './pages/ExpenseAnalytics';
 import SubscriptionPage from './pages/SubscriptionPage';
 
-const Dashboard = ({ tenantSlug }) => {
+const Dashboard = () => {
   const { isAuthenticated, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const hasCheckedAuth = useRef(false);
@@ -24,18 +24,9 @@ const Dashboard = ({ tenantSlug }) => {
     if (!loading && !isAuthenticated && !hasCheckedAuth.current) {
       console.log('❌ Not authenticated, redirecting to login');
       hasCheckedAuth.current = true;
-      
-      // ✅ FIXED: Determine login URL based on subdomain or path
-      const hostname = window.location.hostname;
-      if (hostname.endsWith('.i-expense.ikftech.com') && hostname !== 'i-expense.ikftech.com') {
-        // Already on subdomain, just redirect to /login on same domain
-        window.location.href = '/login';
-      } else {
-        // On main domain, redirect to main login with slug
-        window.location.href = `/login?slug=${tenantSlug}`;
-      }
+      window.location.href = '/login';
     }
-  }, [loading, isAuthenticated, tenantSlug]);
+  }, [loading, isAuthenticated]);
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -63,7 +54,6 @@ const Dashboard = ({ tenantSlug }) => {
           isOpen={sidebarOpen} 
           onToggle={setSidebarOpen}
           onItemClick={() => setSidebarOpen(false)}
-          tenantSlug={tenantSlug}
         />
         
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -77,8 +67,8 @@ const Dashboard = ({ tenantSlug }) => {
               className="p-3 sm:p-4 md:p-6"
             >
               <Routes>
-                {/* ✅ FIXED: Simplified routes for subdomain support */}
-                <Route index element={<Navigate to="dashboard" replace />} />
+                {/* ✅ FIXED: Use absolute paths or proper relative paths */}
+                <Route index element={<DashboardHome />} />
                 <Route path="dashboard" element={<DashboardHome />} />
                 <Route path="expenses" element={<ExpensesPage />} />
                 <Route path="add-expense" element={<AddExpensePage />} />
@@ -87,8 +77,8 @@ const Dashboard = ({ tenantSlug }) => {
                 <Route path="categories" element={<CategoriesPage />} />
                 <Route path="expense-analytics" element={<ExpenseAnalytics />} />
                 <Route path="subscription" element={<SubscriptionPage />} />
-                {/* ✅ FIXED: Redirect unknown routes to dashboard */}
-                <Route path="*" element={<Navigate to="dashboard" replace />} />
+                {/* ✅ FIXED: Don't redirect, just show 404 or redirect to index */}
+                <Route path="*" element={<Navigate to=".." replace />} />
               </Routes>
             </motion.div>
           </main>

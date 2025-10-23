@@ -1,4 +1,4 @@
-// src/apps/TenantAdmin/Sidebar.js
+// src/apps/TenantAdmin/Sidebar.js - FIXED FOR SUBDOMAIN ROUTING
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Crown } from 'lucide-react';
@@ -13,38 +13,59 @@ import {
   Plus,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useTenant } from '../../contexts/TenantContext'; // ✅ ADD THIS LINE
+import { useTenant } from '../../contexts/TenantContext';
 
 const Sidebar = ({ isOpen, onToggle, onItemClick, tenantSlug }) => {
   const location = useLocation();
   const { hasPermission } = useAuth();
-  const { tenant } = useTenant(); // ✅ NOW THIS WILL WORK
+  const { tenant } = useTenant();
   const { slug } = useParams();
 
-  // Use slug from params or tenant context
+  // ✅ Determine if we're on subdomain or path-based routing
+  const hostname = window.location.hostname;
+  const isSubdomain = hostname.endsWith('.i-expense.ikftech.com') && 
+                      hostname !== 'i-expense.ikftech.com' &&
+                      hostname !== 'admin.i-expense.ikftech.com';
+
+  // Use slug from props, context, or params
   const currentSlug = tenantSlug || tenant?.slug || slug;
 
-  console.log('🔗 Sidebar tenant slug:', currentSlug);
+  console.log('🔗 Sidebar routing:', { 
+    isSubdomain, 
+    currentSlug, 
+    hostname 
+  });
+
+  // ✅ FIXED: Build paths based on subdomain vs path-based routing
+  const buildPath = (route) => {
+    if (isSubdomain) {
+      // On subdomain: just use relative paths
+      return route;
+    } else {
+      // On main domain: use /tenant/:slug prefix
+      return `/tenant/${currentSlug}${route}`;
+    }
+  };
 
   const menuItems = [
     {
       title: 'Dashboard',
       icon: LayoutDashboard,
-      path: `/tenant/${currentSlug}/dashboard`,
+      path: buildPath('/dashboard'),
       permission: null,
       shortTitle: 'Home',
     },
     {
       title: 'Expenses',
       icon: Receipt,
-      path: `/tenant/${currentSlug}/expenses`,
+      path: buildPath('/expenses'),
       permission: { resource: 'expenses', action: 'read' },
       shortTitle: 'Expenses',
     },
     {
       title: 'Add Expense',
       icon: Plus,
-      path: `/tenant/${currentSlug}/add-expense`,
+      path: buildPath('/add-expense'),
       permission: { resource: 'expenses', action: 'create' },
       shortTitle: 'Add',
       highlight: true,
@@ -52,28 +73,28 @@ const Sidebar = ({ isOpen, onToggle, onItemClick, tenantSlug }) => {
     {
       title: 'Users',
       icon: Users,
-      path: `/tenant/${currentSlug}/users`,
+      path: buildPath('/users'),
       permission: { resource: 'users', action: 'read' },
       shortTitle: 'Users',
     },
     {
       title: 'Roles',
       icon: Shield,
-      path: `/tenant/${currentSlug}/roles`,
+      path: buildPath('/roles'),
       permission: { resource: 'roles', action: 'read' },
       shortTitle: 'Roles',
     },
     {
       title: 'Categories',
       icon: FolderTree,
-      path: `/tenant/${currentSlug}/categories`,
+      path: buildPath('/categories'),
       permission: { resource: 'categories', action: 'read' },
       shortTitle: 'Categories',
     },
     {
       title: 'Subscription',
       icon: Crown,
-      path: `/tenant/${currentSlug}/subscription`,
+      path: buildPath('/subscription'),
       permission: null,
       shortTitle: 'Plan',
     },
@@ -98,10 +119,12 @@ const Sidebar = ({ isOpen, onToggle, onItemClick, tenantSlug }) => {
           isOpen={isOpen}
           onToggle={onToggle}
           onItemClick={onItemClick}
+          tenantName={tenant?.name}
+          isSubdomain={isSubdomain}
         />
       </motion.div>
 
-      {/* Mobile Sidebar - Full height with safe areas */}
+      {/* Mobile Sidebar */}
       <motion.div
         initial={{ x: -320 }}
         animate={{ x: isOpen ? 0 : -320 }}
@@ -119,13 +142,24 @@ const Sidebar = ({ isOpen, onToggle, onItemClick, tenantSlug }) => {
           onToggle={onToggle}
           onItemClick={onItemClick}
           isMobile={true}
+          tenantName={tenant?.name}
+          isSubdomain={isSubdomain}
         />
       </motion.div>
     </>
   );
 };
 
-const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, isMobile = false }) => {
+const SidebarContent = ({ 
+  menuItems, 
+  location, 
+  isOpen, 
+  onToggle, 
+  onItemClick, 
+  isMobile = false, 
+  tenantName,
+  isSubdomain 
+}) => {
   const handleItemClick = () => {
     if (isMobile && onItemClick) {
       onItemClick();
@@ -141,9 +175,14 @@ const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, is
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <Shield className="w-5 h-5 text-white" />
             </div>
-            <h1 className="font-bold text-gray-900 dark:text-white">
-              Expense Management Tool
-            </h1>
+            <div>
+              <h1 className="font-bold text-gray-900 dark:text-white">
+                {tenantName || 'Workspace'}
+              </h1>
+              {isSubdomain && (
+                <p className="text-xs text-gray-500">Subdomain Access</p>
+              )}
+            </div>
           </div>
           <button
             onClick={() => onToggle(false)}
@@ -172,18 +211,21 @@ const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, is
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Admin Panel
+                <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {tenantName || 'Admin Panel'}
                 </h1>
+                {isSubdomain && (
+                  <p className="text-xs text-gray-500">Subdomain</p>
+                )}
               </motion.div>
             )}
           </motion.div>
         </div>
       )}
 
-      {/* Navigation Menu - Mobile optimized */}
+      {/* Navigation Menu */}
       <nav className={`flex-1 ${isMobile ? 'p-3' : 'p-4'} space-y-1 overflow-y-auto`}>
-        {/* Quick Actions Section for Mobile */}
+        {/* Quick Actions for Mobile */}
         {isMobile && menuItems.length > 0 && (
           <div className="mb-4">
             <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
@@ -256,7 +298,6 @@ const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, is
                   </motion.div>
                 )}
                 
-                {/* Mobile: Show badge for new features */}
                 {isMobile && item.highlight && !isActive && (
                   <span className="ml-auto flex-shrink-0 w-2 h-2 bg-primary-500 rounded-full"></span>
                 )}
@@ -266,7 +307,7 @@ const SidebarContent = ({ menuItems, location, isOpen, onToggle, onItemClick, is
         </div>
       </nav>
 
-      {/* Mobile Footer with User Info */}
+      {/* Mobile Footer */}
       {isMobile && (
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="text-center">

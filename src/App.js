@@ -1,4 +1,4 @@
-// src/App.js
+// src/App.js - FIXED VERSION WITH SUBDOMAIN ROUTING
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -33,104 +33,157 @@ function App() {
     initializeApp();
   }, []);
 
-const initializeApp = async () => {
-  try {
-    const hostname = window.location.hostname;
-    const pathname = window.location.pathname;
-    
-    console.log('🌐 App Init:', { hostname, pathname });
-
-    // ============================================
-    // SUBDOMAIN DETECTION (When DNS allows)
-    // ============================================
-    if (hostname !== 'localhost' && 
-        hostname !== '127.0.0.1' && 
-        hostname !== 'i-expense.ikftech.com' &&
-        hostname !== 'www.i-expense.ikftech.com' &&
-        hostname !== 'admin.i-expense.ikftech.com') {
+  const initializeApp = async () => {
+    try {
+      const hostname = window.location.hostname;
+      const pathname = window.location.pathname;
       
-      // This might be a tenant subdomain
-      if (hostname.endsWith('.i-expense.ikftech.com')) {
-        const tenantSlug = hostname.replace('.i-expense.ikftech.com', '');
+      console.log('🌐 App Init:', { hostname, pathname });
+
+      // ============================================
+      // SUPER ADMIN
+      // ============================================
+      if (pathname.startsWith('/super-admin') || hostname === 'admin.i-expense.ikftech.com') {
+        console.log('✅ Super Admin route detected');
+        setAppType('super-admin');
+        setLoading(false);
+        return;
+      }
+
+      // ============================================
+      // SUBDOMAIN DETECTION (Production)
+      // ============================================
+      if (hostname !== 'localhost' && 
+          hostname !== '127.0.0.1' && 
+          hostname !== 'i-expense.ikftech.com' &&
+          hostname !== 'www.i-expense.ikftech.com' &&
+          hostname !== 'admin.i-expense.ikftech.com') {
         
-        console.log('🏢 Subdomain detected:', tenantSlug);
-        
-        // Try to load tenant
-        try {
-          const tenantInfo = await fetchTenantInfo(tenantSlug);
+        // This might be a tenant subdomain
+        if (hostname.endsWith('.i-expense.ikftech.com')) {
+          const tenantSlug = hostname.replace('.i-expense.ikftech.com', '');
           
-          if (tenantInfo && tenantInfo.status !== 'suspended') {
-            console.log('✅ Tenant loaded from subdomain:', tenantInfo.name);
-            setTenant(tenantInfo);
-            setAppType('tenant');
+          console.log('🏢 Subdomain detected:', tenantSlug);
+          
+          // Try to load tenant
+          try {
+            const tenantInfo = await fetchTenantInfo(tenantSlug);
+            
+            if (tenantInfo && tenantInfo.status !== 'suspended') {
+              console.log('✅ Tenant loaded from subdomain:', tenantInfo.name);
+              setTenant(tenantInfo);
+              setAppType('tenant');
+              setLoading(false);
+              return;
+            } else {
+              // Tenant not found or suspended - show error
+              setError(`Organization "${tenantSlug}" not found or is suspended`);
+              setAppType('public');
+              setLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.log('⚠️ Subdomain tenant not found:', tenantSlug);
+            setError(`Organization "${tenantSlug}" not found`);
+            setAppType('public');
             setLoading(false);
             return;
           }
-        } catch (error) {
-          console.log('⚠️ Subdomain not configured, falling back to path-based');
-          // Fall through to path-based routing
         }
       }
-    }
 
-    // ============================================
-    // SUPER ADMIN
-    // ============================================
-    if (pathname.startsWith('/super-admin') || hostname === 'admin.i-expense.ikftech.com') {
-      console.log('✅ Super Admin route detected');
-      setAppType('super-admin');
-      setLoading(false);
-      return;
-    }
+      // ============================================
+      // PATH-BASED TENANT ROUTING (Fallback)
+      // ============================================
+      const pathMatch = pathname.match(/^\/tenant\/([^\/]+)/);
+      if (pathMatch) {
+        const tenantSlug = pathMatch[1];
+        console.log('🏢 Tenant detected from path:', tenantSlug);
+        
+        const tenantInfo = await fetchTenantInfo(tenantSlug);
+        
+        if (!tenantInfo) {
+          setError(`Organization "${tenantSlug}" not found`);
+          setAppType('public');
+          setLoading(false);
+          return;
+        }
 
-    // ============================================
-    // PATH-BASED TENANT ROUTING (Fallback)
-    // ============================================
-    const pathMatch = pathname.match(/^\/tenant\/([^\/]+)/);
-    if (pathMatch) {
-      const tenantSlug = pathMatch[1];
-      console.log('🏢 Tenant detected from path:', tenantSlug);
-      
-      const tenantInfo = await fetchTenantInfo(tenantSlug);
-      
-      if (!tenantInfo) {
-        setError(`Organization "${tenantSlug}" not found`);
-        setAppType('public');
+        if (tenantInfo.status === 'suspended') {
+          setError('This account has been suspended.');
+          setAppType('public');
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ Tenant loaded from path:', tenantInfo.name);
+        setTenant(tenantInfo);
+        setAppType('tenant');
         setLoading(false);
         return;
       }
 
-      if (tenantInfo.status === 'suspended') {
-        setError('This account has been suspended.');
-        setAppType('public');
-        setLoading(false);
-        return;
-      }
-
-      console.log('✅ Tenant loaded from path:', tenantInfo.name);
-      setTenant(tenantInfo);
-      setAppType('tenant');
+      // ============================================
+      // PUBLIC ROUTES (Main Domain)
+      // ============================================
+      console.log('✅ Public domain');
+      setAppType('public');
       setLoading(false);
-      return;
+
+    } catch (err) {
+      console.error('❌ App initialization error:', err);
+      setError(err.message || 'Failed to initialize application');
+      setAppType('public');
+      setLoading(false);
     }
-
-    // ============================================
-    // PUBLIC ROUTES
-    // ============================================
-    console.log('✅ Public domain');
-    setAppType('public');
-    setLoading(false);
-
-  } catch (err) {
-    console.error('❌ App initialization error:', err);
-    setError(err.message || 'Failed to initialize application');
-    setAppType('public');
-    setLoading(false);
-  }
-};
+  };
 
   if (loading) {
     return <LoadingScreen />;
+  }
+
+  // If subdomain app type with tenant, use special routing
+  if (appType === 'tenant' && tenant) {
+    return (
+      <ErrorBoundary>
+        <ThemeProvider>
+          <BrowserRouter>
+            <React.Suspense fallback={<LoadingScreen />}>
+              {/* ✅ SUBDOMAIN TENANT APP - Routes without /tenant/:slug prefix */}
+              <Routes>
+                <Route path="/login" element={<PublicApp />} />
+                <Route path="/*" element={<TenantAdminApp />} />
+              </Routes>
+            </React.Suspense>
+            
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: '#363636',
+                  color: '#fff',
+                },
+                success: {
+                  duration: 3000,
+                  iconTheme: {
+                    primary: '#10b981',
+                    secondary: '#fff',
+                  },
+                },
+                error: {
+                  duration: 4000,
+                  iconTheme: {
+                    primary: '#ef4444',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </BrowserRouter>
+        </ThemeProvider>
+      </ErrorBoundary>
+    );
   }
 
   return (
@@ -169,7 +222,7 @@ const initializeApp = async () => {
               {/* ERROR FALLBACK */}
               {/* ============================================ */}
               {error && (
-                <Route path="/error" element={<ErrorScreen error={error} onRetry={initializeApp} />} />
+                <Route path="*" element={<ErrorScreen error={error} onRetry={initializeApp} />} />
               )}
             </Routes>
           </React.Suspense>
@@ -218,20 +271,26 @@ const ErrorScreen = ({ error, onRetry }) => (
       <p className="text-gray-600 dark:text-gray-400 mb-8">
         {error}
       </p>
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+      <div className="space-y-3">
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Try Again
+          </button>
+        )}
+        <a
+          href="/"
+          className="block w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
         >
-          Try Again
-        </button>
-      )}
-      <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
-        Domain: {window.location.hostname}
-      </p>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Path: {window.location.pathname}
-      </p>
+          Go to Home
+        </a>
+      </div>
+      <div className="mt-8 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+        <p>Domain: {window.location.hostname}</p>
+        <p>Path: {window.location.pathname}</p>
+      </div>
     </div>
   </div>
 );
